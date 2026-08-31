@@ -41,8 +41,36 @@ jobs:
       - name: Decode signing keystore
         if: env.HAS_KEYSTORE == 'true'
         run: |
-          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > "$RUNNER_TEMP/release.jks"
+          # 去掉粘贴带入的空白后再解码；解码失败时直接报错
+          printf '%s' "${{ secrets.KEYSTORE_BASE64 }}" | tr -d ' \r\n' | base64 -d > "$RUNNER_TEMP/release.jks" || { echo "::error::KEYSTORE_BASE64 不是合法的 base64"; exit 1; }
           echo "RELEASE_KEYSTORE_PATH=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
+
+      # 打包前先校验密钥库：库密码错、别名不存在都会在这里报出明确原因，而不是 packageRelease 里的 "null"
+      - name: Verify signing keystore
+        if: env.HAS_KEYSTORE == 'true'
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          set +e
+          echo "keystore size: $(stat -c %s "$RUNNER_TEMP/release.jks") bytes"
+          # 与 build.gradle.kts 一致：去掉首尾空白/换行
+          KEYSTORE_PASSWORD="$(printf '%s' "$KEYSTORE_PASSWORD" | tr -d '\r\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+          ALIAS="$(printf '%s' "${KEY_ALIAS:-notice}" | tr -d '\r\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+          KEYPASS="$(printf '%s' "${KEY_PASSWORD:-$KEYSTORE_PASSWORD}" | tr -d '\r\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+          [ -n "$KEY_PASSWORD" ] && [ "$KEYPASS" != "$KEYSTORE_PASSWORD" ] && echo "::warning::KEY_PASSWORD 与 KEYSTORE_PASSWORD 不同；PKCS12 密钥库通常要求两者一致。"
+          if ! keytool -list -keystore "$RUNNER_TEMP/release.jks" -storepass "$KEYSTORE_PASSWORD" > list.txt 2>&1; then
+            echo "::error::无法打开密钥库：KEYSTORE_PASSWORD 不对，或 KEYSTORE_BASE64 内容损坏 / 不是这个密钥库。"; cat list.txt; exit 1
+          fi
+          echo "aliases in keystore:"; grep -iE "PrivateKeyEntry|SecretKeyEntry|trustedCertEntry" list.txt | cut -d, -f1
+          if ! grep -qi "^$ALIAS," list.txt; then
+            echo "::error::密钥库里没有别名 '$ALIAS'，请检查 KEY_ALIAS。"; exit 1
+          fi
+          if ! keytool -exportcert -rfc -keystore "$RUNNER_TEMP/release.jks" -storepass "$KEYSTORE_PASSWORD" -alias "$ALIAS" -keypass "$KEYPASS" >/dev/null 2>err.txt; then
+            echo "::error::别名 '$ALIAS' 的密钥密码不对（KEY_PASSWORD；PKCS12 应与 KEYSTORE_PASSWORD 相同）。"; cat err.txt; exit 1
+          fi
+          echo "keystore OK"
 
       # versionName = tag（去掉前缀 v）；versionCode = x*10000 + y*100 + z（如 v1.2.3 -> 10203），
       # 手动触发或 tag 不是 x.y.z 时退回 run_number，保证仍然递增。

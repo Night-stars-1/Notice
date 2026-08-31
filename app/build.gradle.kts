@@ -20,11 +20,14 @@ android {
     // CI 通过环境变量提供正式签名（见 .github/workflows/release.yml）；本地或未配置时退回 debug 签名。
     val releaseKeystore = System.getenv("RELEASE_KEYSTORE_PATH")
     if (!releaseKeystore.isNullOrBlank()) {
+        // 全部 trim：从网页粘贴到 secret 的值常带首尾空白或换行
+        val storePass = System.getenv("RELEASE_KEYSTORE_PASSWORD")?.trim()
         signingConfigs.create("release") {
-            storeFile = rootProject.file(releaseKeystore) // 相对路径以仓库根目录为准
-            storePassword = System.getenv("RELEASE_KEYSTORE_PASSWORD")
-            keyAlias = System.getenv("RELEASE_KEY_ALIAS")
-            keyPassword = System.getenv("RELEASE_KEY_PASSWORD")
+            storeFile = rootProject.file(releaseKeystore.trim()) // 相对路径以仓库根目录为准
+            storePassword = storePass
+            keyAlias = System.getenv("RELEASE_KEY_ALIAS")?.trim()?.takeIf { it.isNotBlank() } ?: "notice"
+            // PKCS12 密钥库的密钥密码必须与库密码一致；未单独提供时沿用库密码
+            keyPassword = System.getenv("RELEASE_KEY_PASSWORD")?.trim()?.takeIf { it.isNotBlank() } ?: storePass
         }
     }
 
