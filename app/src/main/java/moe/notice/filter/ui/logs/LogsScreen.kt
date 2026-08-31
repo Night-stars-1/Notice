@@ -7,8 +7,8 @@ import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.material.icons.outlined.KeyboardArrowUp
-import androidx.compose.material3.SmallFloatingActionButton
+import androidx.compose.material.icons.outlined.VerticalAlignTop
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.geometry.Offset
@@ -33,6 +33,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
@@ -186,11 +187,12 @@ fun LogsScreen(
                     .align(Alignment.BottomEnd)
                     .padding(end = 16.dp, bottom = contentPadding.calculateBottomPadding() + 16.dp),
             ) {
-                SmallFloatingActionButton(
+                FloatingActionButton(
                     onClick = { scope.launch { listState.animateScrollToItem(0) } },
+                    shape = RoundedCornerShape(16.dp),
                 ) {
                     Icon(
-                        Icons.Outlined.KeyboardArrowUp,
+                        Icons.Outlined.VerticalAlignTop,
                         contentDescription = stringResource(R.string.scroll_to_top),
                     )
                 }
