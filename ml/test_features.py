@@ -17,13 +17,13 @@ def test_fnv1a32_known_vectors():
 
 
 def test_feature_buckets_unigram_counts():
-    # "aa" -> unigrams a,a ; bigram aa  => 2 distinct buckets, counts 2 and 1
+    # "aa" -> unigram 为 a,a；bigram 为 aa  => 2 个不同的桶，计数分别为 2 和 1
     b = feature_buckets("aa")
     assert sorted(b.values()) == [1, 2]
     assert all(0 <= k < BUCKETS for k in b)
 
 
 def test_feature_buckets_uses_utf16_units():
-    # U+1F600 is a surrogate pair -> 2 code units -> unigrams: 2, bigram: 1
+    # U+1F600 是一个代理对 -> 2 个代码单元 -> unigram：2 个，bigram：1 个
     b = feature_buckets("\U0001F600")
     assert sum(b.values()) == 3

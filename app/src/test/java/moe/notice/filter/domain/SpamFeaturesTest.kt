@@ -18,7 +18,7 @@ class SpamFeaturesTest {
     @Test
     fun fnv1a32KnownVectors() {
         assertEquals(0x811C9DC5.toInt(), SpamFeatures.fnv1a32("", 0, 0))
-        // One UTF-16 unit "a" is bytes 0x61 0x00; compare against a byte-wise reference.
+        // 单个 UTF-16 单元 "a" 对应字节 0x61 0x00；与按字节计算的参考实现对比。
         assertEquals(fnvOfBytes(byteArrayOf(0x61, 0x00)), SpamFeatures.fnv1a32("a", 0, 1))
         assertEquals(fnvOfBytes("foobar".toByteArray(Charsets.UTF_16LE)), SpamFeatures.fnv1a32("foobar", 0, 6))
     }

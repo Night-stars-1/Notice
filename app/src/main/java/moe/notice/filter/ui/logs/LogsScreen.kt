@@ -144,7 +144,7 @@ fun LogsScreen(
         } else {
             val listState = rememberLazyListState()
             val scope = rememberCoroutineScope()
-            // Shown after scrolling a few items down, but only while the user is scrolling back up.
+            // 向下滚动几项之后才显示，且仅在用户向上回滚时显示。
             var scrollingUp by remember { mutableStateOf(false) }
             val nestedScroll = remember {
                 object : NestedScrollConnection {
@@ -493,7 +493,7 @@ private fun formatTime(timestamp: Long): String {
 
 private fun formatScore(score: Float): String = String.format(Locale.ROOT, "%.2f", score)
 
-/** Badge label: "AI" for model blocks, otherwise blocked/allowed. */
+/** 徽标文字：模型拦截显示 "AI"，否则显示已拦截/已放行。 */
 private fun NotificationRecord.badgeTextRes(): Int = when {
     !blocked -> R.string.badge_allowed
     ruleId == SpamJudge.RULE_ID -> R.string.badge_ai
@@ -501,10 +501,10 @@ private fun NotificationRecord.badgeTextRes(): Int = when {
 }
 
 /**
- * Spam/ham labelling as an M3 connected button group inside a card that matches the detail cards.
- * From M3: connected group spans the surface, 2dp between buttons, connected leading/trailing
- * shapes, selected toggle = filled + square, unselected = tonal + round, outlined icon → filled icon
- * on selection. My decisions: the caption above the group and the 12dp card padding.
+ * 垃圾/正常标注，以 M3 connected button group 形式放在与详情卡片风格一致的卡片中。
+ * 来自 M3 的规范：connected group 横跨整个 surface，按钮间距 2dp，首尾为 connected 形状，
+ * 选中的 toggle = filled + 方形，未选中 = tonal + 圆形，选中时 outlined 图标 → filled 图标。
+ * 我的决定：组上方的说明文字以及 12dp 的卡片内边距。
  */
 @Composable
 private fun LabelCard(label: Boolean?, onLabel: (Boolean?) -> Unit) {

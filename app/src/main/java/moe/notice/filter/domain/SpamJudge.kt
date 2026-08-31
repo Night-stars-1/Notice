@@ -1,8 +1,8 @@
 package moe.notice.filter.domain
 
-/** Applies the spam model with a threshold; the synthetic [rule] is what shows up in logs. */
+/** 按阈值应用垃圾短信模型；日志中显示的是合成的 [rule]。 */
 object SpamJudge {
-    /** Normalised texts shorter than this are not judged (too little signal). */
+    /** 归一化后短于此长度的文本不做判定（信号太少）。 */
     const val MIN_LENGTH = 4
     const val RULE_ID = "spam_model"
     const val RULE_NAME = "智能识别骚扰"
@@ -15,9 +15,9 @@ object SpamJudge {
     )
 
     /**
-     * Messages that must never be blocked by the model regardless of score: one-time codes.
-     * The training corpus has no genuine OTP traffic, so this is a hard safety net.
-     * Matched against the lowercased raw text.
+     * 无论得分如何都绝不能被模型拦截的消息：一次性验证码。
+     * 训练语料中没有真实的 OTP 流量，因此这是一道硬性安全网。
+     * 与转为小写后的原始文本进行匹配。
      */
     private val PROTECTED_MARKERS = listOf(
         "验证码", "校验码", "动态码", "动态密码", "一次性密码", "驗證碼",

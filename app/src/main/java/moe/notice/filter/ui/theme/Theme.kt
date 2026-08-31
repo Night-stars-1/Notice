@@ -74,7 +74,7 @@ private val DarkColors = darkColorScheme(
     surfaceContainerHighest = Color(0xFF333537),
 )
 
-// M3 corner scale: extra small 4 / small 8 / medium 12 / large 16 / extra large 28.
+// M3 圆角尺度：extra small 4 / small 8 / medium 12 / large 16 / extra large 28。
 private val NoticeShapes = Shapes(
     extraSmall = RoundedCornerShape(4.dp),
     small = RoundedCornerShape(8.dp),
@@ -83,7 +83,7 @@ private val NoticeShapes = Shapes(
     extraLarge = RoundedCornerShape(28.dp),
 )
 
-/** A selectable accent palette: hand-tuned "blue" plus the generated presets. */
+/** 可选的强调色调色板：手工调校的 "blue" 加上生成的预设。 */
 data class ThemePreset(
     val id: String,
     val name: String,
@@ -105,7 +105,7 @@ object ThemePresets {
     fun byId(id: String): ThemePreset = all.firstOrNull { it.id == id } ?: blue
 }
 
-/** Whether Material You dynamic colour is available on this device. */
+/** 此设备是否支持 Material You 动态取色。 */
 val supportsDynamicColor: Boolean get() = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
 
 @Composable

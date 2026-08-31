@@ -14,11 +14,10 @@ import moe.notice.filter.BuildConfig
 import moe.notice.filter.provider.NotificationLogProvider
 
 /**
- * Delivers notification logs to the app's ContentProvider, the only persistent store the app
- * can read. Inserting starts the app process when it is not running, so entries are batched:
- * written at once while the app is alive, otherwise buffered and flushed after [FLUSH_DELAY_MS]
- * or once [FLUSH_THRESHOLD] entries pile up, whichever comes first. The app also broadcasts
- * [ACTION_FLUSH] on start to collect whatever is pending.
+ * 将通知日志投递到应用的 ContentProvider，这是应用唯一能读取的持久化存储。
+ * 应用未运行时执行插入会拉起应用进程，因此条目按批处理：应用存活时立即写入，
+ * 否则先缓冲，待 [FLUSH_DELAY_MS] 到期或累积到 [FLUSH_THRESHOLD] 条后再刷出，
+ * 以先到者为准。应用启动时也会广播 [ACTION_FLUSH]，以收集所有待处理的条目。
  */
 internal class LogSink {
     private val worker = Executors.newSingleThreadScheduledExecutor { runnable ->
@@ -44,7 +43,7 @@ internal class LogSink {
         }
     }
 
-    // Runs on [worker].
+    // 在 [worker] 上运行。
     private fun flush(ctx: Context) {
         scheduled?.cancel(false)
         scheduled = null

@@ -1,12 +1,11 @@
 package moe.notice.filter.domain
 
 /**
- * Featurisation shared bit-for-bit with ml/features.py.
- * Pipeline: lowercase -> drop all whitespace, decimal digits and the letter 'x',
- * then char n-grams (1..3) over UTF-16 code units hashed with FNV-1a 32-bit.
- * Whitespace, digits and 'x' are dropped because the training corpus strips spaces from ham and
- * masks digits/names in spam as runs of 'x'; keeping them would teach the model those artifacts
- * instead of the surrounding words (see ml/features.py).
+ * 与 ml/features.py 逐位一致的特征化。
+ * 流程：转小写 -> 去掉所有空白、十进制数字和字母 'x'，
+ * 然后对 UTF-16 码元取字符 n-gram（1..3），并用 FNV-1a 32 位哈希。
+ * 之所以去掉空白、数字和 'x'，是因为训练语料会去掉正常短信中的空格，并把垃圾短信中的数字/姓名
+ * 掩码为连续的 'x'；保留它们会让模型学到这些人工痕迹而不是周围的词语（见 ml/features.py）。
  */
 object SpamFeatures {
     const val BUCKETS = 1 shl 18
@@ -16,7 +15,7 @@ object SpamFeatures {
     private const val FNV_OFFSET = 0x811C9DC5.toInt()
     private const val FNV_PRIME = 0x01000193
 
-    // Keep in sync with features.SPACE_CHARS.
+    // 需与 features.SPACE_CHARS 保持同步。
     private val SPACE_CHARS: Set<Char> = (
         "\t\n\u000B\u000C\r\u001C\u001D\u001E\u001F \u0085\u00A0\u1680" +
             "\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A" +
@@ -33,7 +32,7 @@ object SpamFeatures {
         return out.toString()
     }
 
-    /** FNV-1a over the UTF-16 code units in [start, end), each fed as (low byte, high byte). */
+    /** 对 [start, end) 区间内的 UTF-16 码元计算 FNV-1a，每个码元按（低字节, 高字节）顺序输入。 */
     fun fnv1a32(text: CharSequence, start: Int, end: Int): Int {
         var h = FNV_OFFSET
         for (i in start until end) {

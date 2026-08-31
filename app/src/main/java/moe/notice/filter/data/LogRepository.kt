@@ -43,7 +43,7 @@ class LogRepository internal constructor(private val file: File) {
             val next: List<NotificationRecord>
             val stored: NotificationRecord
             if (mergeIndex >= 0) {
-                // Progress/ongoing updates of one live notification collapse into the existing row, in place.
+                // 同一条活动通知的进度/持续更新会原地合并进已有的那一行。
                 val previous = current[mergeIndex]
                 stored = record.copy(id = previous.id, updateCount = previous.updateCount + 1)
                 next = current.toMutableList().also { it[mergeIndex] = stored }
@@ -63,9 +63,17 @@ class LogRepository internal constructor(private val file: File) {
         }
     }
 
-    /** Only progress-bar / ongoing notifications are merged; chat-style updates stay separate rows. */
+    /** 只合并进度条 / 持续通知；聊天式更新仍各占一行。 */
     private fun isMergeable(record: NotificationRecord): Boolean =
-        record.details.progress.isNotBlank() || record.details.flags and FLAG_ONGOING_EVENT != 0
+        hasProgressBar(record.details.progress) || record.details.flags and FLAG_ONGOING_EVENT != 0
+
+    /**
+     * 形如 "current / max" 或不确定进度条时为 true。单独的数字（例如 "0"）是钩子过去针对
+     * NotificationCompat 给每条通知（包括聊天消息）都附加的 EXTRA_PROGRESS=0 / MAX=0 组合所输出的值，
+     * 因此不能算作进度条。
+     */
+    private fun hasProgressBar(progress: String): Boolean =
+        progress.contains('/') || progress == INDETERMINATE_PROGRESS
 
     private fun sameNotification(existing: NotificationRecord, incoming: NotificationRecord): Boolean =
         existing.packageName == incoming.packageName &&
@@ -136,7 +144,8 @@ class LogRepository internal constructor(private val file: File) {
     companion object {
         private const val MAX_ITEMS = 500
         private const val MERGE_WINDOW_MS = 10 * 60 * 1000L
-        private const val FLAG_ONGOING_EVENT = 0x00000002 // Notification.FLAG_ONGOING_EVENT (avoid android.jar in tests)
+        private const val INDETERMINATE_PROGRESS = "不确定进度" // 必须与 NotificationCapture.progress() 一致
+        private const val FLAG_ONGOING_EVENT = 0x00000002 // Notification.FLAG_ONGOING_EVENT（避免测试依赖 android.jar）
         private const val FILE_NAME = "notification_log.json"
 
         @Volatile

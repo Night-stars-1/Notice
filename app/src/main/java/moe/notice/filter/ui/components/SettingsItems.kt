@@ -55,7 +55,7 @@ fun SectionHeader(
     }
 }
 
-/** Segmented list item with an optional leading icon, title, supporting text and a trailing slot. */
+/** 分段列表项，包含可选的前置图标、标题、辅助文字和一个尾部插槽。 */
 @Composable
 fun SettingRow(
     title: String,
@@ -147,7 +147,7 @@ fun SettingSwitchRow(
     }
 }
 
-/** Segmented list item with a title, live value label and a slider; commits on release. */
+/** 分段列表项，包含标题、实时数值标签和滑块；松手时提交。 */
 @Composable
 fun SettingSliderRow(
     title: String,

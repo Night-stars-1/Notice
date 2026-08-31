@@ -6,7 +6,7 @@ import java.io.FileOutputStream
 import moe.notice.filter.ModuleStatus
 import moe.notice.filter.domain.SpamDelta
 
-/** Writes the tuning delta into the module's libxposed remote file so system_server can read it. */
+/** 把微调 delta 写入模块的 libxposed 远程文件，以便 system_server 读取。 */
 object SpamDeltaWriter {
     fun write(delta: SpamDelta): Boolean {
         val pfd = ModuleStatus.openRemoteFile(SpamDelta.REMOTE_FILE) ?: return false

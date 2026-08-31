@@ -17,7 +17,7 @@ class SpamTunerTest {
 
     @Test
     fun learnsSpamLabelWithoutMovingUnrelatedText() {
-        val base = model(bias = -4f) // everything ham by default
+        val base = model(bias = -4f) // 默认全部判为正常
         assertTrue(base.score(spamText) < 0.1f)
         val delta = SpamTuner.fit(base, listOf(SpamTuner.Sample(spamText, spam = true)))
         val tuned = base.withDelta(delta)
@@ -27,7 +27,7 @@ class SpamTunerTest {
 
     @Test
     fun learnsHamLabel() {
-        val base = model(bias = 4f) // everything spam by default
+        val base = model(bias = 4f) // 默认全部判为垃圾
         val delta = SpamTuner.fit(base, listOf(SpamTuner.Sample(hamText, spam = false)))
         val tuned = base.withDelta(delta)
         assertTrue("tuned=${tuned.score(hamText)}", tuned.score(hamText) <= 0.1f)

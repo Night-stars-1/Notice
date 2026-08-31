@@ -9,9 +9,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 /**
- * Activation state of the module, fed by the Xposed service the framework hands to the app
- * (see [NoticeApplication]). Modern modules are not hooked by themselves, so this is the only
- * way to know whether the framework is present.
+ * 模块的激活状态，由框架交给应用的 Xposed 服务提供（见 [NoticeApplication]）。
+ * 现代模块不会 hook 自身，因此这是判断框架是否存在的唯一途径。
  */
 object ModuleStatus {
     data class Info(
@@ -29,7 +28,7 @@ object ModuleStatus {
     @Volatile
     private var service: XposedService? = null
 
-    /** Framework-backed preferences; null when the module is not active or the framework lacks remote support. */
+    /** 由框架托管的偏好设置；模块未激活或框架不支持远程偏好时为 null。 */
     fun remotePrefs(): SharedPreferences? {
         val current = service ?: return null
         return try {
@@ -40,7 +39,7 @@ object ModuleStatus {
         }
     }
 
-    /** Opens (creating if needed) a file in the module's framework-side data dir; null when inactive. */
+    /** 打开（必要时创建）模块框架侧数据目录中的文件；未激活时为 null。 */
     fun openRemoteFile(name: String): ParcelFileDescriptor? {
         val current = service ?: return null
         return try {

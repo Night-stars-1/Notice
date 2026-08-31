@@ -324,7 +324,7 @@ private fun DarkMode.labelRes(): Int = when (this) {
     DarkMode.DARK -> R.string.dark_mode_dark
 }
 
-/** Title plus a row of seed-colour swatches; the selected one carries a check mark. */
+/** 标题加一排种子色色块；选中的色块带有勾选标记。 */
 @Composable
 private fun ThemeColorRow(
     selected: String,

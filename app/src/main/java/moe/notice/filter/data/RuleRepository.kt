@@ -10,9 +10,9 @@ import moe.notice.filter.domain.BlockRule
 import moe.notice.filter.domain.FilterConfig
 
 /**
- * Rules live in the Xposed framework's remote preferences (the only store system_server can
- * read). A private local copy is kept purely so the UI can still display the last known rules
- * while the module is inactive; nothing is written unless the framework service is bound.
+ * 规则保存在 Xposed 框架的远程偏好设置中（system_server 唯一能读取的存储）。
+ * 另外保留一份私有的本地副本，仅用于在模块未激活时让界面仍能显示最近已知的规则；
+ * 除非已绑定框架服务，否则不会写入任何内容。
  */
 class RuleRepository(context: Context) {
     private val cache: SharedPreferences =
@@ -24,12 +24,12 @@ class RuleRepository(context: Context) {
     private val _config = MutableStateFlow(FilterConfigCodec.fromPrefs(cache))
     val config: StateFlow<FilterConfig> = _config.asStateFlow()
 
-    /** Called whenever the Xposed service comes (prefs) or goes (null). */
+    /** 在 Xposed 服务连接（prefs）或断开（null）时调用。 */
     fun attachRemote(prefs: SharedPreferences?) {
         remote = prefs
         if (prefs == null) return
         if (!prefs.contains(FilterPrefs.KEY_CONFIG)) {
-            // First run on the new API: carry the pre-service local rules over once.
+            // 新 API 上的首次运行：把服务接入前的本地规则一次性迁移过去。
             val local = _config.value
             if (local.rules.isNotEmpty() || local.enabled) write(prefs, local)
             return
@@ -39,7 +39,7 @@ class RuleRepository(context: Context) {
         _config.value = current
     }
 
-    /** Returns false (and writes nothing) when the module is not active. */
+    /** 模块未激活时返回 false（且不写入任何内容）。 */
     fun save(config: FilterConfig): Boolean {
         val prefs = remote ?: return false
         write(prefs, config)

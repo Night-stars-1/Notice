@@ -13,7 +13,7 @@ internal object Xiaomi {
                 if (!target.isNullOrBlank()) return target
             }
         } catch (_: Throwable) {
-            // AOSP Notification has no extraNotification; ignore.
+            // AOSP 的 Notification 没有 extraNotification 字段；忽略。
         }
         return pkg.orEmpty()
     }

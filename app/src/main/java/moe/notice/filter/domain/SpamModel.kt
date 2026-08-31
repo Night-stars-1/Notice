@@ -6,9 +6,9 @@ import kotlin.math.exp
 import kotlin.math.sqrt
 
 /**
- * Logistic-regression spam scorer over [SpamFeatures] hashed n-grams.
- * Binary format (big-endian): "NSPM", int32 version=1, int32 buckets, int32 ngramMin,
- * int32 ngramMax, float32 bias, float32 scale, then `buckets` int8 weights (w = q * scale).
+ * 基于 [SpamFeatures] 哈希 n-gram 的逻辑回归垃圾短信评分器。
+ * 二进制格式（大端序）："NSPM"、int32 version=1、int32 buckets、int32 ngramMin、
+ * int32 ngramMax、float32 bias、float32 scale，然后是 `buckets` 个 int8 权重（w = q * scale）。
  */
 class SpamModel(
     val buckets: Int,
@@ -22,7 +22,7 @@ class SpamModel(
         require(buckets > 0 && buckets and (buckets - 1) == 0) { "buckets must be a power of two" }
     }
 
-    /** Probability in [0, 1] that [text] is spam. */
+    /** [text] 为垃圾信息的概率，取值范围 [0, 1]。 */
     fun score(text: String): Float {
         val counts = SpamFeatures.buckets(text, ngramMin, ngramMax, buckets)
         var z = bias
@@ -35,7 +35,7 @@ class SpamModel(
         return sigmoid(z)
     }
 
-    /** A copy of this model with [delta] added to the weights; a mismatched bucket count is ignored. */
+    /** 将 [delta] 叠加到权重后得到的模型副本；桶数不匹配时忽略该 delta。 */
     fun withDelta(delta: SpamDelta): SpamModel {
         if (delta.buckets != buckets || delta.isEmpty) return this
         val merged = weights.copyOf()
@@ -70,7 +70,7 @@ class SpamModel(
             return SpamModel(buckets, ngramMin, ngramMax, bias, weights)
         }
 
-        /** The model packaged in the APK, loaded once; null when missing or corrupt. */
+        /** 打包在 APK 中的模型，只加载一次；缺失或损坏时为 null。 */
         fun bundled(): SpamModel? {
             if (bundledLoaded) return bundledModel
             synchronized(this) {

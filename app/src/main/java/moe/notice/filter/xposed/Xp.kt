@@ -5,7 +5,7 @@ import io.github.libxposed.api.XposedInterface
 import java.lang.reflect.Field
 import java.lang.reflect.Method
 
-/** Holds the framework interface for the current process plus small logging/reflection helpers. */
+/** 持有当前进程的框架接口，并提供简单的日志与反射辅助方法。 */
 internal object Xp {
     private const val TAG = "Notice"
 
@@ -22,7 +22,7 @@ internal object Xp {
         if (a != null) a.log(Log.ERROR, TAG, msg, t) else Log.e(TAG, msg, t)
     }
 
-    /** Calls the original implementation, bypassing every hook on [method]. */
+    /** 调用原始实现，绕过 [method] 上的所有 hook。 */
     fun invokeOrigin(method: Method, thisObject: Any?, args: Array<Any?>): Any? {
         val a = api ?: throw IllegalStateException("framework not attached")
         return a.getInvoker(method)

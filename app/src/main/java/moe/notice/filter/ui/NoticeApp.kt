@@ -12,6 +12,14 @@ import androidx.activity.SystemBarStyle
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.SideEffect
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.graphics.Color
+import androidx.compose.foundation.background
+import android.graphics.drawable.ColorDrawable
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.material3.MotionScheme
+import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.ContentTransform
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
@@ -21,7 +29,6 @@ import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
-import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
@@ -110,7 +117,7 @@ fun NoticeApp(
 ) {
     val appearance by viewModel.appearance.collectAsStateWithLifecycle()
     NoticeTheme(appearance = appearance) {
-        SystemBarsEffect(dark = appearance.isDark())
+        SystemBarsEffect(dark = appearance.isDark(), background = MaterialTheme.colorScheme.surface)
         val config by viewModel.config.collectAsStateWithLifecycle()
         val records by viewModel.records.collectAsStateWithLifecycle()
         val apps by viewModel.apps.collectAsStateWithLifecycle()
@@ -182,15 +189,21 @@ fun NoticeApp(
                 }
             }
         }
+        val motion = MaterialTheme.motionScheme
+        val axisOffset = with(LocalDensity.current) { SHARED_AXIS_OFFSET.roundToPx() }
         AnimatedContent(
             targetState = screen,
-            modifier = Modifier.fillMaxSize(),
-            transitionSpec = { slideFade(forward = targetState.ordinal > initialState.ordinal) },
+            modifier = Modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.surface),
+            transitionSpec = {
+                sharedAxisX(motion, forward = targetState.ordinal > initialState.ordinal) { axisOffset }
+            },
             label = "screen",
         ) { current ->
             when (current) {
                 Screen.Apps -> if (pickingLogApps) {
-                    // Only apps that appear in the log; uninstalled ones fall back to the package name.
+                    // 仅列出出现在日志中的应用；已卸载的应用回退为显示包名。
                     val logApps = remember(records, apps) {
                         records.map { it.packageName.orSystemPackage() }.distinct().map { pkg ->
                             apps.firstOrNull { it.packageName == pkg }
@@ -544,10 +557,13 @@ private fun HomeScaffold(
         },
         snackbarHost = { SnackbarHost(snackbar) },
     ) { padding ->
+        val motion = MaterialTheme.motionScheme
         AnimatedContent(
             targetState = tab,
-            modifier = Modifier.fillMaxSize(),
-            transitionSpec = { slideFade(forward = targetState > initialState) },
+            modifier = Modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.surface),
+            transitionSpec = { sharedAxisX(motion, forward = targetState > initialState) { it / 4 } },
             label = "tab",
         ) { currentTab ->
             when (currentTab) {
@@ -613,16 +629,22 @@ private fun HomeScaffold(
 
 private enum class Screen { Home, Editor, Apps }
 
-private fun slideFade(forward: Boolean) = if (forward) {
-    (slideInHorizontally(tween(420, easing = FastOutSlowInEasing)) { it / 3 } +
-        fadeIn(tween(220))) togetherWith
-        (slideOutHorizontally(tween(420, easing = FastOutSlowInEasing)) { -it / 3 } +
-            fadeOut(tween(160)))
-} else {
-    (slideInHorizontally(tween(420, easing = FastOutSlowInEasing)) { -it / 3 } +
-        fadeIn(tween(220))) togetherWith
-        (slideOutHorizontally(tween(420, easing = FastOutSlowInEasing)) { it / 3 } +
-            fadeOut(tween(160)))
+/** 屏幕之间前进/后退导航所用的 M3 shared-axis X 位移。 */
+private val SHARED_AXIS_OFFSET = 30.dp
+
+/**
+ * M3 shared-axis X：水平滑动加淡入淡出，使用 expressive 弹簧动画。[offset] 将整个宽度映射为滑动距离——
+ * 屏幕之间的 push/pop 为 30dp，标签页之间为宽度的四分之一。
+ */
+private fun sharedAxisX(motion: MotionScheme, forward: Boolean, offset: (fullWidth: Int) -> Int): ContentTransform {
+    val direction = if (forward) 1 else -1
+    return ContentTransform(
+        targetContentEnter = slideInHorizontally(motion.defaultSpatialSpec()) { direction * offset(it) } +
+            fadeIn(motion.defaultEffectsSpec()),
+        initialContentExit = slideOutHorizontally(motion.defaultSpatialSpec()) { -direction * offset(it) } +
+            fadeOut(motion.fastEffectsSpec()),
+        sizeTransform = SizeTransform(clip = false),
+    )
 }
 
 private fun testKeyword(rules: List<BlockRule>): String? {
@@ -632,9 +654,9 @@ private fun testKeyword(rules: List<BlockRule>): String? {
         .firstOrNull { it.isNotBlank() }
 }
 
-/** Keeps status/navigation bar icon contrast in step with the app's own dark-mode choice. */
+/** 让状态栏/导航栏图标的对比度与应用自身的深色模式选择保持一致。 */
 @Composable
-private fun SystemBarsEffect(dark: Boolean) {
+private fun SystemBarsEffect(dark: Boolean, background: Color) {
     val context = LocalContext.current
     SideEffect {
         val activity = generateSequence(context) { (it as? ContextWrapper)?.baseContext }
@@ -646,5 +668,6 @@ private fun SystemBarsEffect(dark: Boolean) {
             SystemBarStyle.light(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT)
         }
         activity.enableEdgeToEdge(statusBarStyle = style, navigationBarStyle = style)
+        activity.window.setBackgroundDrawable(ColorDrawable(background.toArgb()))
     }
 }

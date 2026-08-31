@@ -64,6 +64,23 @@ class LogRepositoryTest {
     }
 
     @Test
+    fun bareZeroProgressDoesNotMerge() {
+        // 旧版 hook 构建对 NotificationCompat 默认的 EXTRA_PROGRESS 键值对会输出 "0"。
+        val r = repo()
+        r.post("第一条消息", at = 1_000, progress = "0")
+        r.post("第二条消息", at = 2_000, progress = "0")
+        assertEquals(2, r.items.value.size)
+    }
+
+    @Test
+    fun indeterminateProgressMerges() {
+        val r = repo()
+        r.post("准备中", at = 1_000, progress = "不确定进度")
+        r.post("仍在准备", at = 2_000, progress = "不确定进度")
+        assertEquals(1, r.items.value.size)
+    }
+
+    @Test
     fun staleProgressStartsNewRow() {
         val r = repo()
         r.post("10%", at = 1_000, progress = "10 / 100")

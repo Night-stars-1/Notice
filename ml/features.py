@@ -1,12 +1,11 @@
-"""Featurisation shared (bit-for-bit) with app/.../domain/SpamFeatures.kt.
+"""与 app/.../domain/SpamFeatures.kt 逐位一致的特征化实现。
 
-Pipeline: lowercase -> drop all whitespace, decimal digits and the letter 'x',
-then char n-grams (1..3) over UTF-16 code units hashed with FNV-1a 32-bit.
+流程：转小写 -> 去掉所有空白字符、十进制数字和字母 'x'，
+然后对 UTF-16 代码单元取字符 n-gram（1..3），并用 FNV-1a 32 位哈希。
 
-Whitespace, digits and 'x' are dropped because the Chinese SMS corpus strips
-spaces from ham rows and masks digits/names in spam rows as runs of 'x'; keeping
-them would let the model learn "has a space => spam" / "has a digit => ham" /
-"has xxx => spam" artifacts instead of the surrounding words.
+之所以去掉空白、数字和 'x'，是因为中文短信语料在正常样本中去掉了空格，
+而在垃圾样本中把数字/人名掩码为连续的 'x'；若保留它们，模型会学到
+"有空格 => 垃圾" / "有数字 => 正常" / "有 xxx => 垃圾" 这类伪特征，而不是周围的词语。
 """
 from __future__ import annotations
 
@@ -16,7 +15,7 @@ BUCKETS = 1 << 18
 NGRAM_MIN = 1
 NGRAM_MAX = 3
 
-# Keep in sync with SpamFeatures.SPACE_CHARS.
+# 与 SpamFeatures.SPACE_CHARS 保持同步。
 SPACE_CHARS = frozenset(
     "\t\n\x0b\x0c\r\x1c\x1d\x1e\x1f \x85\xa0\u1680"
     "\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a"
@@ -37,7 +36,7 @@ def normalize(text: str) -> str:
 
 
 def code_units(text: str) -> bytes:
-    """UTF-16-LE bytes: two bytes (low, high) per code unit, surrogates kept."""
+    """UTF-16-LE 字节序列：每个代码单元两个字节（低位、高位），保留代理项。"""
     return text.encode("utf-16-le", "surrogatepass")
 
 

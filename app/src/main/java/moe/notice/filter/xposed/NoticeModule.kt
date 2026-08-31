@@ -5,7 +5,7 @@ import io.github.libxposed.api.XposedModule
 import io.github.libxposed.api.XposedModuleInterface
 import java.lang.reflect.Method
 
-/** Modern (libxposed API) entry point; declared in META-INF/xposed/java_init.list. */
+/** 现代（libxposed API）入口；在 META-INF/xposed/java_init.list 中声明。 */
 class NoticeModule : XposedModule() {
     override fun onModuleLoaded(param: XposedModuleInterface.ModuleLoadedParam) {
         Xp.api = this

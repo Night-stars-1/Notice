@@ -1,6 +1,6 @@
-"""Train the spam classifier and export it into the app.
+"""训练垃圾短信分类器并导出到应用中。
 
-Usage:  cd ml && uv run train.py            # downloads data on first run
+用法：  cd ml && uv run train.py            # 首次运行时会下载数据
 """
 from __future__ import annotations
 
@@ -27,7 +27,7 @@ DATA_URL = (
     "%E5%B8%A6%E6%A0%87%E7%AD%BE%E7%9F%AD%E4%BF%A1.txt"
 )
 DATA_PATH = ROOT / "data" / "labeled_sms.txt"
-# Small English SMS Spam Collection (UCI), adds Latin-script coverage.
+# 小型英文 SMS Spam Collection（UCI），补充拉丁字母文本的覆盖。
 EN_DATA_URL = (
     "https://raw.githubusercontent.com/mohitgupta-omg/"
     "Kaggle-SMS-Spam-Collection-Dataset-/master/spam.csv"
@@ -132,7 +132,7 @@ def main() -> None:
     deq, scale = write_model(MODEL_OUT, w, b, BUCKETS, NGRAM_MIN, NGRAM_MAX)
     write_parity(PARITY_OUT, PARITY_TEXTS, deq, b)
 
-    # Report quantisation loss on the test split.
+    # 报告测试集上的量化损失。
     zq = x_te @ deq + b
     pq = 1.0 / (1.0 + np.exp(-zq))
     drift = float(np.max(np.abs(pq - p)))

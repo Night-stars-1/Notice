@@ -6,9 +6,9 @@ import java.io.DataOutputStream
 import java.io.InputStream
 
 /**
- * Sparse weight correction learned on-device and laid over the bundled [SpamModel].
- * Binary format (big-endian): "NSPD", int32 version=1, int32 buckets, int32 count,
- * then count × (int32 index, float32 value).
+ * 在设备端学习得到、叠加在内置 [SpamModel] 之上的稀疏权重修正。
+ * 二进制格式（大端序）："NSPD"、int32 version=1、int32 buckets、int32 count，
+ * 然后是 count × (int32 index, float32 value)。
  */
 class SpamDelta(
     val buckets: Int,
@@ -37,7 +37,7 @@ class SpamDelta(
     }
 
     companion object {
-        /** Name of the libxposed remote file the app writes and system_server reads. */
+        /** 由应用写入、system_server 读取的 libxposed 远程文件名。 */
         const val REMOTE_FILE = "spam_delta.bin"
         private const val VERSION = 1
         private val MAGIC = byteArrayOf('N'.code.toByte(), 'S'.code.toByte(), 'P'.code.toByte(), 'D'.code.toByte())

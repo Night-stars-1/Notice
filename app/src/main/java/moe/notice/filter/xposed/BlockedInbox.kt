@@ -246,7 +246,7 @@ internal class BlockedInbox {
                 )
                 return
             } catch (_: Throwable) {
-                // Fall through to NotificationManager.
+                // 回退到 NotificationManager。
             }
         }
         try {

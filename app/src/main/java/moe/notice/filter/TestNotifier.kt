@@ -29,7 +29,7 @@ object TestNotifier {
         try {
             nm.notify(NOTIFY_ID, notification)
         } catch (_: RuntimeException) {
-            // Hooked NMS may skip posting; the client should not crash.
+            // 被 hook 的 NMS 可能跳过发送；客户端不应因此崩溃。
         }
     }
 }

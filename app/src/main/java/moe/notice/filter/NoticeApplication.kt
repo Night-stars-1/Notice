@@ -10,7 +10,7 @@ class NoticeApplication : Application(), XposedServiceHelper.OnServiceListener {
     override fun onCreate() {
         super.onCreate()
         XposedServiceHelper.registerListener(this)
-        // system_server buffers notification logs while we are not running; ask for them now.
+        // system_server 会在我们未运行时缓冲通知日志；现在请求刷出。
         sendBroadcast(Intent(LogSink.ACTION_FLUSH))
     }
 

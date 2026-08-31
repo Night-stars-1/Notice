@@ -23,15 +23,15 @@ import moe.notice.filter.provider.NotificationLogProvider
 internal class KeywordFilter {
     private var lastConfigSummary = ""
     @Volatile private var config = FilterConfig()
-    /** Bundled model with the user's tuning delta applied; null until loaded. */
+    /** 已应用用户调优增量的内置模型；加载前为 null。 */
     @Volatile private var model: SpamModel? = null
     @Volatile private var loadedDeltaVersion = -1L
     private var api: XposedInterface? = null
     private val sink = LogSink()
-    // Held strongly: SharedPreferences implementations keep listeners weakly.
+    // 强引用持有：SharedPreferences 的实现以弱引用保存监听器。
     private var listener: SharedPreferences.OnSharedPreferenceChangeListener? = null
 
-    /** Reads the rules from the framework's remote preferences and follows updates pushed by the daemon. */
+    /** 从框架的远程偏好设置中读取规则，并跟随守护进程推送的更新。 */
     fun attach(api: XposedInterface) {
         this.api = api
         try {
@@ -51,10 +51,10 @@ internal class KeywordFilter {
         }
     }
 
-    /** Rebuilds [model] when the tuning delta version in the config changed. */
+    /** 当配置中的调优增量版本发生变化时重建 [model]。 */
     private fun refreshModel() {
         val cfg = config
-        if (!cfg.spamEnabled && model == null) return // lazy: nothing to score yet
+        if (!cfg.spamEnabled && model == null) return // 惰性加载：目前还没有需要评分的内容
         val version = cfg.spamDeltaVersion
         if (version == loadedDeltaVersion && model != null) return
         val base = SpamModel.bundled()
@@ -96,7 +96,7 @@ internal class KeywordFilter {
             }
         }
         if (pkg == null) {
-            // System packages such as "android" have no dot; enqueue's first String arg is the package.
+            // 诸如 "android" 之类的系统包名不含点号；enqueue 的第一个 String 参数即为包名。
             pkg = args.firstOrNull { it is String && it.isNotBlank() } as? String
         }
         val n = notification ?: return false
@@ -117,7 +117,7 @@ internal class KeywordFilter {
         var verdict: SpamJudge.Verdict? = null
         var hit = ruleHit
         if (cfg.enabled && cfg.spamEnabled && resolved !in cfg.spamExcludedPackages) {
-            // Scored even when a rule already matched so every log entry carries a score.
+            // 即使规则已经命中也进行评分，以便每条日志都带有分数。
             verdict = try {
                 if (model == null) refreshModel()
                 model?.let { SpamJudge.judge(it, cfg.spamThreshold, extracted.combined) }

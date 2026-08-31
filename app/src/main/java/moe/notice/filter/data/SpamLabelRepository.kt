@@ -17,7 +17,7 @@ data class SpamLabel(
     val timestamp: Long,
 )
 
-/** User-provided spam/ham labels for logged notifications; the training set for on-device tuning. */
+/** 用户为已记录通知提供的垃圾/正常标注；即设备端微调的训练集。 */
 class SpamLabelRepository(context: Context) {
     private val file = File(context.applicationContext.filesDir, FILE_NAME)
     private val lock = Any()
@@ -91,7 +91,7 @@ class SpamLabelRepository(context: Context) {
     companion object {
         private const val FILE_NAME = "spam_labels.json"
 
-        /** Approximates the combined text system_server scores (title + body). */
+        /** 近似 system_server 用于评分的合并文本（标题 + 正文）。 */
         fun trainingText(record: NotificationRecord): String =
             listOf(record.title, record.text).filter { it.isNotBlank() }.joinToString("\n")
     }

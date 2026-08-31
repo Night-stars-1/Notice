@@ -26,7 +26,7 @@ def test_write_model_header_and_quantisation(tmp_path):
 
 def test_score_matches_manual_dot(tmp_path):
     w = np.zeros(BUCKETS, dtype=np.float32)
-    # bias only -> sigmoid(bias)
+    # 仅有 bias -> sigmoid(bias)
     assert abs(score("hello", w, 2.0) - sigmoid(2.0)) < 1e-6
     assert score("", w, 2.0) == sigmoid(2.0)
 

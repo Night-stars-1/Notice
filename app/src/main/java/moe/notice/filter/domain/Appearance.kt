@@ -10,7 +10,7 @@ enum class DarkMode(val id: String) {
     }
 }
 
-/** App-only look & feel; stored locally, never sent to system_server. */
+/** 仅应用内的外观设置；存储在本地，绝不发送给 system_server。 */
 data class Appearance(
     val darkMode: DarkMode = DarkMode.SYSTEM,
     val dynamicColor: Boolean = true,

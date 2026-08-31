@@ -6,9 +6,9 @@ data class FilterConfig(
     val rules: List<BlockRule> = emptyList(),
     val spamEnabled: Boolean = false,
     val spamThreshold: Float = DEFAULT_SPAM_THRESHOLD,
-    /** Packages the spam model never scores. */
+    /** 垃圾短信模型从不评分的包名。 */
     val spamExcludedPackages: List<String> = emptyList(),
-    /** Timestamp of the last on-device tuning delta written to the remote file; 0 = none. */
+    /** 最近一次写入远程文件的设备端微调 delta 的时间戳；0 表示没有。 */
     val spamDeltaVersion: Long = 0L,
 ) {
     companion object {

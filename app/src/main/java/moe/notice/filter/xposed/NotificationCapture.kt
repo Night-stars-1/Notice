@@ -47,7 +47,8 @@ internal object NotificationCapture {
         if (indeterminate) return "不确定进度"
         val current = extras.getInt(Notification.EXTRA_PROGRESS, 0)
         val max = extras.getInt(Notification.EXTRA_PROGRESS_MAX, 0)
-        return if (max > 0) "$current / $max" else current.toString()
+        // NotificationCompat 会向每条通知写入 EXTRA_PROGRESS=0 / MAX=0；这并不表示存在进度条。
+        return if (max > 0) "$current / $max" else ""
     }
 
     private fun textLines(extras: Bundle?): List<String> {

@@ -48,7 +48,7 @@ class NoticeViewModel(application: Application) : AndroidViewModel(application) 
 
     val appearance: StateFlow<Appearance> = appearanceRepo.appearance
 
-    /** User spam/ham labels keyed by record id. */
+    /** 用户的垃圾/正常标注，以记录 id 为键。 */
     val labels: StateFlow<Map<String, SpamLabel>> = spamLabels.labels
 
     private val _apps = MutableStateFlow<List<InstalledApp>>(emptyList())
@@ -57,7 +57,7 @@ class NoticeViewModel(application: Application) : AndroidViewModel(application) 
     val moduleStatus: StateFlow<ModuleStatus.Info> = ModuleStatus.state
 
     private val _messages = MutableSharedFlow<Int>(extraBufferCapacity = 4)
-    /** String resource ids of one-off messages for the UI to show (e.g. save refused). */
+    /** 供 UI 显示的一次性消息的字符串资源 id（例如保存被拒绝）。 */
     val messages: SharedFlow<Int> = _messages.asSharedFlow()
 
     init {
@@ -72,7 +72,7 @@ class NoticeViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    /** Refits the tuning delta from all labels and ships it to system_server. */
+    /** 根据全部标注重新拟合调优增量，并下发给 system_server。 */
     private fun retune(labels: Collection<SpamLabel>) {
         val base = SpamModel.bundled() ?: return
         val delta = SpamTuner.fit(base, labels.map { SpamTuner.Sample(it.text, it.spam) })
@@ -83,7 +83,7 @@ class NoticeViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    /** null clears the label. */
+    /** 传入 null 表示清除标注。 */
     fun setLabel(record: NotificationRecord, spam: Boolean?) {
         if (spam == null) spamLabels.remove(record.id) else spamLabels.set(record, spam)
     }

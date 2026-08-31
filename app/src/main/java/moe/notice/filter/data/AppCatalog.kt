@@ -4,10 +4,10 @@ import android.content.Context
 import moe.notice.filter.R
 import android.content.pm.ApplicationInfo
 
-/** Framework package used for legacy records whose package name was captured as blank. */
+/** 用于旧记录的框架包名，这些记录捕获到的包名为空。 */
 const val SYSTEM_PACKAGE = "android"
 
-/** Legacy log rows captured system notifications with a blank package; display them as [SYSTEM_PACKAGE]. */
+/** 旧的日志行捕获系统通知时包名为空；将其显示为 [SYSTEM_PACKAGE]。 */
 fun String.orSystemPackage(): String = ifBlank { SYSTEM_PACKAGE }
 
 data class InstalledApp(

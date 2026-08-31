@@ -1,4 +1,4 @@
-"""Binary model export + reference scorer (must match SpamModel.kt)."""
+"""二进制模型导出 + 参考打分器（必须与 SpamModel.kt 一致）。"""
 from __future__ import annotations
 
 import json
@@ -50,7 +50,7 @@ def write_model(
 
 
 def score(text: str, weights_dequant: np.ndarray, bias: float) -> float:
-    """Reference scorer using dequantised float32 weights (what the app computes)."""
+    """使用反量化后的 float32 权重的参考打分器（即应用实际计算的结果）。"""
     counts = feature_buckets(text)
     if not counts:
         return sigmoid(bias)

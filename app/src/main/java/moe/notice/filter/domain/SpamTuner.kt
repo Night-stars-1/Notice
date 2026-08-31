@@ -4,9 +4,9 @@ import kotlin.math.exp
 import kotlin.math.sqrt
 
 /**
- * Fits a sparse [SpamDelta] over a frozen base model from user-labelled samples:
- * minimise Σ logloss(σ(z_base + Δ·x)) + l2/2·‖Δ‖² by plain SGD from Δ = 0.
- * Deterministic (fixed order, fixed epochs) so the same labels always give the same delta.
+ * 根据用户标注的样本，在冻结的基础模型之上拟合一个稀疏的 [SpamDelta]：
+ * 从 Δ = 0 出发，用普通 SGD 最小化 Σ logloss(σ(z_base + Δ·x)) + l2/2·‖Δ‖²。
+ * 过程是确定性的（固定顺序、固定轮数），因此相同的标注总会得到相同的 delta。
  */
 object SpamTuner {
     data class Sample(val text: String, val spam: Boolean)

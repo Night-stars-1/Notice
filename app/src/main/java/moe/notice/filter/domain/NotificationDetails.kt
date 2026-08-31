@@ -20,8 +20,8 @@ data class NotificationDetails(
     val actions: List<String> = emptyList(),
     val textLines: List<String> = emptyList(),
     val messages: List<String> = emptyList(),
-    /** Spam probability from [SpamModel] when the model was enabled at judge time; null otherwise. */
+    /** 判定时模型已启用则为 [SpamModel] 给出的垃圾概率；否则为 null。 */
     val spamScore: Float? = null,
-    /** True when the message matched a never-block marker (verification code) and was let through. */
+    /** 消息命中了绝不拦截的标记（验证码）并被放行时为 true。 */
     val spamProtected: Boolean = false,
 )

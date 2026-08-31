@@ -38,7 +38,7 @@ class SpamDeltaTest {
         assertEquals(-1.25f, tuned.weights[9], 0f)
         assertEquals(0f, tuned.weights[4], 0f)
         assertEquals(0.25f, tuned.bias, 0f)
-        assertEquals(0f, base.weights[3], 0f) // base untouched
+        assertEquals(0f, base.weights[3], 0f) // base 未被修改
     }
 
     @Test

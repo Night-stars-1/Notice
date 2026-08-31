@@ -60,7 +60,7 @@ internal object NotificationText {
                 ?.invoke(item)
             append(parts, text as? CharSequence)
         } catch (_: Throwable) {
-            // MessagingStyle.Message shape varies across API levels.
+            // MessagingStyle.Message 的结构在不同 API 级别间有所差异。
         }
     }
 
