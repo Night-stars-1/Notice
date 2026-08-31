@@ -6,6 +6,7 @@ import moe.notice.filter.domain.AppListMode
 import moe.notice.filter.domain.BlockRule
 import moe.notice.filter.domain.FilterConfig
 import moe.notice.filter.domain.MatchMode
+import moe.notice.filter.domain.RuleAction
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -19,6 +20,7 @@ object FilterConfigCodec {
         root.put("spamExcludedPackages", JSONArray(config.spamExcludedPackages))
         root.put("spamDeltaVersion", config.spamDeltaVersion)
         root.put("debugLogEnabled", config.debugLogEnabled)
+        root.put("judgeLogEnabled", config.judgeLogEnabled)
         val rules = JSONArray()
         for (rule in config.rules) {
             rules.put(encodeRule(rule))
@@ -45,6 +47,7 @@ object FilterConfigCodec {
             spamExcludedPackages = stringList(root.optJSONArray("spamExcludedPackages")),
             spamDeltaVersion = root.optLong("spamDeltaVersion", 0L),
             debugLogEnabled = root.optBoolean("debugLogEnabled", true),
+            judgeLogEnabled = root.optBoolean("judgeLogEnabled", false),
         )
     }
 
@@ -88,6 +91,7 @@ object FilterConfigCodec {
         obj.put("excludeKeywords", JSONArray(rule.excludeKeywords))
         obj.put("packages", JSONArray(rule.packages))
         obj.put("appListMode", rule.appListMode.id)
+        obj.put("action", rule.action.id)
         return obj
     }
 
@@ -100,6 +104,7 @@ object FilterConfigCodec {
         excludeKeywords = stringList(obj.optJSONArray("excludeKeywords")),
         packages = stringList(obj.optJSONArray("packages")),
         appListMode = AppListMode.fromId(obj.optString("appListMode")),
+        action = RuleAction.fromId(obj.optString("action")),
     )
 
     private fun stringList(array: JSONArray?): List<String> {

@@ -12,7 +12,19 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.ui.zIndex
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -51,6 +63,7 @@ import moe.notice.filter.domain.AppListMode
 import moe.notice.filter.domain.BlockRule
 import moe.notice.filter.domain.FilterConfig
 import moe.notice.filter.domain.MatchMode
+import moe.notice.filter.domain.RuleAction
 import moe.notice.filter.ui.components.SectionHeader
 import moe.notice.filter.ui.theme.groupedListShape
 
@@ -63,11 +76,45 @@ fun RulesScreen(
     onToggleRule: (String, Boolean) -> Unit,
     onEditRule: (BlockRule) -> Unit,
     onDeleteRule: (String) -> Unit,
+    onReorderRules: (List<String>) -> Unit,
     contentPadding: PaddingValues,
 ) {
     var pendingDelete by remember { mutableStateOf<BlockRule?>(null) }
+    val listState = rememberLazyListState()
+    val haptics = LocalHapticFeedback.current
+
+    // 长按拖动排序：拖动期间用本地顺序渲染，松手后一次性写回配置。
+    var order by remember { mutableStateOf(config.rules) }
+    var draggingId by remember { mutableStateOf<String?>(null) }
+    var dragOffset by remember { mutableFloatStateOf(0f) }
+    LaunchedEffect(config.rules) { if (draggingId == null) order = config.rules }
+    val rules = if (draggingId != null) order else config.rules
+
+    fun onDragBy(dy: Float) {
+        val id = draggingId ?: return
+        dragOffset += dy
+        val items = listState.layoutInfo.visibleItemsInfo
+        val current = items.firstOrNull { it.key == id } ?: return
+        val center = current.offset + dragOffset + current.size / 2f
+        val target = items.firstOrNull { info ->
+            info.key != id && order.any { it.id == info.key } && center >= info.offset && center <= info.offset + info.size
+        } ?: return
+        val from = order.indexOfFirst { it.id == id }
+        val to = order.indexOfFirst { it.id == target.key }
+        if (from < 0 || to < 0 || from == to) return
+        order = order.toMutableList().apply { add(to, removeAt(from)) }
+        // 交换后被拖项的布局位置随之移动，补偿偏移让它仍跟着手指。
+        dragOffset -= (target.offset - current.offset)
+    }
+
+    fun finishDrag() {
+        if (draggingId != null) onReorderRules(order.map { it.id })
+        draggingId = null
+        dragOffset = 0f
+    }
 
     LazyColumn(
+        state = listState,
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(
             start = 16.dp,
@@ -93,11 +140,33 @@ fun RulesScreen(
         if (config.rules.isEmpty()) {
             item { EmptyRules() }
         } else {
-            itemsIndexed(config.rules, key = { _, rule -> rule.id }) { index, rule ->
+            itemsIndexed(rules, key = { _, rule -> rule.id }) { index, rule ->
+                val dragging = rule.id == draggingId
                 RuleCard(
                     rule = rule,
-                    shape = groupedListShape(index, config.rules.size),
+                    shape = groupedListShape(index, rules.size),
                     appLabel = appLabel,
+                    dragging = dragging,
+                    modifier = Modifier
+                        .then(if (dragging) Modifier else Modifier.animateItem())
+                        .zIndex(if (dragging) 1f else 0f)
+                        .graphicsLayer { translationY = if (dragging) dragOffset else 0f }
+                        .pointerInput(rule.id) {
+                            detectDragGesturesAfterLongPress(
+                                onDragStart = {
+                                    order = config.rules
+                                    draggingId = rule.id
+                                    dragOffset = 0f
+                                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                },
+                                onDrag = { change, amount ->
+                                    change.consume()
+                                    onDragBy(amount.y)
+                                },
+                                onDragEnd = { finishDrag() },
+                                onDragCancel = { finishDrag() },
+                            )
+                        },
                     onToggle = { onToggleRule(rule.id, it) },
                     onClick = { onEditRule(rule) },
                     onDelete = { pendingDelete = rule },
@@ -227,7 +296,18 @@ private fun RuleCard(
     onToggle: (Boolean) -> Unit,
     onClick: () -> Unit,
     onDelete: () -> Unit,
+    modifier: Modifier = Modifier,
+    dragging: Boolean = false,
 ) {
+    // 长按抬起：轻微放大 + 容器色调提亮 + 浅阴影，全部走 motionScheme 弹簧，避免硬切。
+    val motion = MaterialTheme.motionScheme
+    val scale by animateFloatAsState(if (dragging) 1.02f else 1f, motion.defaultSpatialSpec(), label = "dragScale")
+    val elevation by animateDpAsState(if (dragging) 4.dp else 0.dp, motion.defaultEffectsSpec(), label = "dragElevation")
+    val container by animateColorAsState(
+        if (dragging) MaterialTheme.colorScheme.surfaceContainerHigh else MaterialTheme.colorScheme.surfaceContainerLow,
+        motion.defaultEffectsSpec(),
+        label = "dragColor",
+    )
     val names = rule.packages.take(3).joinToString("、", transform = appLabel)
     val apps = when {
         rule.packages.isEmpty() -> stringResource(R.string.apps_all)
@@ -242,12 +322,21 @@ private fun RuleCard(
             names,
         )
     }
-    val meta = stringResource(rule.mode.labelRes()) + " · " + apps
+    val meta = buildString {
+        if (rule.action != RuleAction.BLOCK) append(stringResource(rule.action.labelRes())).append(" · ")
+        append(stringResource(rule.mode.labelRes())).append(" · ").append(apps)
+    }
     Surface(
         onClick = onClick,
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier
+            .fillMaxWidth()
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+            },
         shape = shape,
-        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        color = container,
+        shadowElevation = elevation,
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
@@ -310,6 +399,12 @@ internal fun BlockRule.displayName(): String = name.ifBlank { "未命名规则" 
 internal fun AppListMode.labelRes(): Int = when (this) {
     AppListMode.WHITELIST -> R.string.app_list_whitelist
     AppListMode.BLACKLIST -> R.string.app_list_blacklist
+}
+
+internal fun RuleAction.labelRes(): Int = when (this) {
+    RuleAction.BLOCK -> R.string.action_block
+    RuleAction.ALLOW -> R.string.action_allow
+    RuleAction.SKIP_AI -> R.string.action_skip_ai
 }
 
 internal fun MatchMode.labelRes(): Int = when (this) {

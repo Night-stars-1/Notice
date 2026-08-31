@@ -236,7 +236,7 @@ private fun LogCard(
             append(" · ")
         }
         append(formatTime(item.timestamp))
-        if (item.blocked && !item.ruleName.isNullOrBlank()) {
+        if (!item.ruleName.isNullOrBlank()) {
             append(" · ")
             append(item.ruleName)
         }
@@ -415,7 +415,7 @@ private fun NotificationDetailSheet(
                     stringResource(R.string.log_detail_status),
                     stringResource(if (record.blocked) R.string.badge_blocked else R.string.badge_allowed),
                 )
-                if (record.blocked && !record.ruleName.isNullOrBlank()) {
+                if (!record.ruleName.isNullOrBlank()) {
                     DetailRow(stringResource(R.string.log_detail_rule), record.ruleName.orEmpty())
                 }
                 details.spamScore?.let { score ->

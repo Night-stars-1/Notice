@@ -45,6 +45,19 @@ class JudgeLineTest {
     }
 
     @Test
+    fun parsesAllowByRuleWithAiSkipped() {
+        val line = JudgeLine.parse(
+            "judge enabled=true spamEnabled=true rules={白名单/on/allow/contains_any/[银行]} pkg=com.bank " +
+                "result=allow:白名单 ai=skipped text=您的账户有一笔入账",
+        )!!
+        assertFalse(line.blocked)
+        assertEquals("白名单", line.ruleName)
+        assertTrue(line.aiSkipped)
+        assertNull(line.score)
+        assertEquals("您的账户有一笔入账", line.text)
+    }
+
+    @Test
     fun nonJudgeLinesReturnNull() {
         assertNull(JudgeLine.parse("config enabled=true"))
         assertNull(JudgeLine.parse("judge something else"))

@@ -55,6 +55,7 @@ import moe.notice.filter.R
 import moe.notice.filter.domain.AppListMode
 import moe.notice.filter.domain.BlockRule
 import moe.notice.filter.domain.MatchMode
+import moe.notice.filter.domain.RuleAction
 import moe.notice.filter.ui.components.KeywordEditor
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -70,6 +71,8 @@ fun RuleEditorScreen(
     var name by remember { mutableStateOf(initial.name) }
     var enabled by remember { mutableStateOf(initial.enabled) }
     var mode by remember { mutableStateOf(initial.mode) }
+    var action by remember { mutableStateOf(initial.action) }
+    var actionMenuExpanded by remember { mutableStateOf(false) }
     var keywords by remember { mutableStateOf(initial.keywords) }
     var excludeKeywords by remember { mutableStateOf(initial.excludeKeywords) }
     var modeMenuExpanded by remember { mutableStateOf(false) }
@@ -82,6 +85,7 @@ fun RuleEditorScreen(
         name = name.trim(),
         enabled = enabled,
         mode = mode,
+        action = action,
         keywords = keywords,
         excludeKeywords = excludeKeywords,
         packages = packages,
@@ -185,6 +189,41 @@ fun RuleEditorScreen(
                             null
                         },
                     )
+                }
+            }
+            ExposedDropdownMenuBox(
+                expanded = actionMenuExpanded,
+                onExpandedChange = { actionMenuExpanded = it },
+            ) {
+                OutlinedTextField(
+                    modifier = Modifier
+                        .menuAnchor(type = MenuAnchorType.PrimaryNotEditable)
+                        .fillMaxWidth(),
+                    readOnly = true,
+                    value = stringResource(action.labelRes()),
+                    onValueChange = {},
+                    label = { Text(stringResource(R.string.rule_action)) },
+                    trailingIcon = {
+                        ExposedDropdownMenuDefaults.TrailingIcon(expanded = actionMenuExpanded)
+                    },
+                    supportingText = { Text(stringResource(action.hintRes())) },
+                    colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
+                    shape = MaterialTheme.shapes.medium,
+                )
+                ExposedDropdownMenu(
+                    expanded = actionMenuExpanded,
+                    onDismissRequest = { actionMenuExpanded = false },
+                ) {
+                    RuleAction.entries.forEach { item ->
+                        DropdownMenuItem(
+                            text = { Text(stringResource(item.labelRes())) },
+                            onClick = {
+                                action = item
+                                actionMenuExpanded = false
+                            },
+                            contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding,
+                        )
+                    }
                 }
             }
             ExposedDropdownMenuBox(
@@ -355,4 +394,10 @@ private fun MatchMode.hintRes(): Int = when (this) {
     MatchMode.CONTAINS_A_NOT_B -> R.string.mode_hint_contains_a_not_b
     MatchMode.REGEX -> R.string.mode_hint_regex
     MatchMode.ALL_CONTENT -> R.string.mode_hint_all_content
+}
+
+private fun RuleAction.hintRes(): Int = when (this) {
+    RuleAction.BLOCK -> R.string.action_hint_block
+    RuleAction.ALLOW -> R.string.action_hint_allow
+    RuleAction.SKIP_AI -> R.string.action_hint_skip_ai
 }

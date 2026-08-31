@@ -12,6 +12,8 @@ data class FilterConfig(
     val spamDeltaVersion: Long = 0L,
     /** 是否把模块运行日志镜像到应用（设置 → 调试 → 运行日志）。 */
     val debugLogEnabled: Boolean = true,
+    /** 是否为每条通知输出一行 judge 判定日志（含匹配结果、分数和文本摘要）。 */
+    val judgeLogEnabled: Boolean = false,
 ) {
     companion object {
         const val DEFAULT_SPAM_THRESHOLD = 0.9f

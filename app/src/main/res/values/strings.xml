@@ -19,6 +19,8 @@
     <string name="section_debug">调试</string>
     <string name="debug_log_switch">记录运行日志</string>
     <string name="debug_log_switch_hint">关闭后系统进程不再向应用发送运行日志，已有日志保留</string>
+    <string name="judge_log_switch">记录判定日志</string>
+    <string name="judge_log_switch_hint">为每条通知输出一行匹配结果、分数与文本摘要</string>
     <string name="debug_log">运行日志</string>
     <string name="debug_log_hint">模块在系统进程中的运行日志：hook、配置、判定与错误</string>
     <string name="debug_log_export">导出</string>
@@ -69,6 +71,13 @@
     <string name="app_list_whitelist">白名单</string>
     <string name="app_list_blacklist">黑名单</string>
     <string name="match_mode">匹配方式</string>
+    <string name="rule_action">执行行为</string>
+    <string name="action_block">拦截</string>
+    <string name="action_allow">放行</string>
+    <string name="action_skip_ai">不进行智能识别</string>
+    <string name="action_hint_block">命中后拦截通知</string>
+    <string name="action_hint_allow">命中后直接放行：不再匹配后续规则，也不进行智能识别</string>
+    <string name="action_hint_skip_ai">命中的通知跳过智能识别，但仍继续匹配后续规则</string>
     <string name="mode_contains_any">包含任一</string>
     <string name="mode_contains_all">包含全部</string>
     <string name="mode_not_contains_any">不包含任一</string>

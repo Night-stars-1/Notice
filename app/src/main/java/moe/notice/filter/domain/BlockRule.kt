@@ -12,6 +12,7 @@ data class BlockRule(
     val packages: List<String> = emptyList(),
     val appListMode: AppListMode = AppListMode.WHITELIST,
     val compiled: List<Regex> = emptyList(),
+    val action: RuleAction = RuleAction.BLOCK,
 ) {
     val appliesToAllApps: Boolean get() = packages.isEmpty()
 

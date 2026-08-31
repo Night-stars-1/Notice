@@ -142,6 +142,10 @@ class NoticeViewModel(application: Application) : AndroidViewModel(application) 
         report(rules.delete(id))
     }
 
+    fun reorderRules(orderedIds: List<String>) {
+        report(rules.reorder(orderedIds))
+    }
+
     fun toggleRule(id: String, enabled: Boolean) {
         report(rules.toggleRule(id, enabled))
     }
@@ -157,6 +161,10 @@ class NoticeViewModel(application: Application) : AndroidViewModel(application) 
 
     fun setDebugLogEnabled(enabled: Boolean) {
         report(rules.setDebugLogEnabled(enabled))
+    }
+
+    fun setJudgeLogEnabled(enabled: Boolean) {
+        report(rules.setJudgeLogEnabled(enabled))
     }
 
     fun labelFor(packageName: String): String {

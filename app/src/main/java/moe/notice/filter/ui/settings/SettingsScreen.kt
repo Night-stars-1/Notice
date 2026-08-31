@@ -40,6 +40,7 @@ import androidx.compose.material.icons.outlined.AppBlocking
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.BugReport
 import androidx.compose.material.icons.outlined.DeleteSweep
+import androidx.compose.material.icons.outlined.Gavel
 import androidx.compose.material.icons.outlined.Code
 import androidx.compose.material.icons.outlined.FilterAlt
 import androidx.compose.material.icons.outlined.History
@@ -81,6 +82,7 @@ fun SettingsScreen(
     onSpamThresholdChange: (Float) -> Unit,
     onOpenDebugLog: () -> Unit,
     onDebugLogEnabledChange: (Boolean) -> Unit,
+    onJudgeLogEnabledChange: (Boolean) -> Unit,
     appearance: Appearance,
     onDarkModeChange: (DarkMode) -> Unit,
     onDynamicColorChange: (Boolean) -> Unit,
@@ -227,7 +229,7 @@ fun SettingsScreen(
                 icon = Icons.Outlined.Science,
                 title = stringResource(R.string.test),
                 supporting = stringResource(R.string.test_hint),
-                shape = groupedListShape(0, 3),
+                shape = groupedListShape(0, 4),
                 onClick = onRequestTest,
             ) {
                 Icon(
@@ -243,8 +245,18 @@ fun SettingsScreen(
                 title = stringResource(R.string.debug_log_switch),
                 supporting = stringResource(R.string.debug_log_switch_hint),
                 checked = config.debugLogEnabled,
-                shape = groupedListShape(1, 3),
+                shape = groupedListShape(1, 4),
                 onCheckedChange = onDebugLogEnabledChange,
+            )
+        }
+        item {
+            SettingSwitchRow(
+                icon = Icons.Outlined.Gavel,
+                title = stringResource(R.string.judge_log_switch),
+                supporting = stringResource(R.string.judge_log_switch_hint),
+                checked = config.judgeLogEnabled,
+                shape = groupedListShape(2, 4),
+                onCheckedChange = onJudgeLogEnabledChange,
             )
         }
         item {
@@ -252,7 +264,7 @@ fun SettingsScreen(
                 icon = Icons.Outlined.Terminal,
                 title = stringResource(R.string.debug_log),
                 supporting = stringResource(R.string.debug_log_hint),
-                shape = groupedListShape(2, 3),
+                shape = groupedListShape(3, 4),
                 onClick = onOpenDebugLog,
             ) {
                 Icon(

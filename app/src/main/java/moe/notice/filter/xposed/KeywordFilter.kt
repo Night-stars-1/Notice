@@ -2,7 +2,10 @@ package moe.notice.filter.xposed
 
 import android.content.ContentValues
 import android.app.Notification
+import android.content.BroadcastReceiver
 import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.content.SharedPreferences
 import android.os.Build
 import android.os.ParcelFileDescriptor
@@ -27,6 +30,7 @@ internal class KeywordFilter {
     @Volatile private var model: SpamModel? = null
     @Volatile private var loadedDeltaVersion = -1L
     private var api: XposedInterface? = null
+    private var reloadReceiverRegistered = false
     private val sink = LogSink()
     // 强引用持有：SharedPreferences 的实现以弱引用保存监听器。
     private var listener: SharedPreferences.OnSharedPreferenceChangeListener? = null
@@ -85,8 +89,44 @@ internal class KeywordFilter {
         loadedDeltaVersion = version
     }
 
+    /** 重新从框架拉取远程偏好；由应用保存配置后的广播触发。 */
+    fun reload(source: String) {
+        val a = api ?: return
+        try {
+            config = FilterConfigCodec.fromPrefs(a.getRemotePreferences(FilterPrefs.NAME))
+            logConfig(source)
+            refreshModel()
+        } catch (t: Throwable) {
+            Xp.log("reload config failed", t)
+        }
+    }
+
+    private fun ensureReloadReceiver(ctx: Context) {
+        if (reloadReceiverRegistered) return
+        reloadReceiverRegistered = true
+        val receiver = object : BroadcastReceiver() {
+            override fun onReceive(c: Context?, intent: Intent?) {
+                reload("broadcast")
+            }
+        }
+        try {
+            val filter = IntentFilter(FilterPrefs.ACTION_RELOAD)
+            if (Build.VERSION.SDK_INT >= 33) {
+                ctx.registerReceiver(receiver, filter, Context.RECEIVER_EXPORTED)
+            } else {
+                @Suppress("DEPRECATION")
+                ctx.registerReceiver(receiver, filter)
+            }
+        } catch (t: Throwable) {
+            Xp.log("register reload receiver failed", t)
+        }
+    }
+
     fun shouldBlock(args: Array<Any?>, context: Context?): Boolean {
-        if (context != null) DebugLog.attach(context, sink)
+        if (context != null) {
+            DebugLog.attach(context, sink)
+            ensureReloadReceiver(context)
+        }
 
         var pkg: String? = null
         var notification: Notification? = null
@@ -110,15 +150,18 @@ internal class KeywordFilter {
 
         val extracted = NotificationText.extract(n)
         val cfg = config
-        val ruleHit = if (!cfg.enabled) {
-            null
+        val decision = if (!cfg.enabled) {
+            RuleMatcher.Decision()
         } else {
-            RuleMatcher.firstMatch(cfg.rules, resolved, extracted.combined)
+            RuleMatcher.evaluate(cfg.rules, resolved, extracted.combined)
         }
         var verdict: SpamJudge.Verdict? = null
-        var hit = ruleHit
-        if (cfg.enabled && cfg.spamEnabled && resolved !in cfg.spamExcludedPackages) {
-            // 即使规则已经命中也进行评分，以便每条日志都带有分数。
+        var hit = decision.block
+        val aiAllowed = cfg.enabled && cfg.spamEnabled &&
+            resolved !in cfg.spamExcludedPackages &&
+            decision.allow == null && !decision.skipAi
+        if (aiAllowed) {
+            // 规则已命中拦截时也打分，让每条记录都带分数。
             verdict = try {
                 if (model == null) refreshModel()
                 model?.let { SpamJudge.judge(it, cfg.spamThreshold, extracted.combined) }
@@ -128,14 +171,18 @@ internal class KeywordFilter {
             }
             if (hit == null && verdict?.block == true) hit = SpamJudge.rule
         }
-        Xp.log(formatJudgeLog(resolved, extracted.combined, hit, verdict))
+        // 日志里显示的规则：拦截它的那条，否则放行它的那条（白名单）。
+        val shownRule = hit ?: decision.allow
+        if (cfg.judgeLogEnabled) {
+            Xp.log(formatJudgeLog(resolved, extracted.combined, hit, shownRule, verdict, decision.skipAi))
+        }
         if (config.logEnabled) {
             try {
-                if (hit != null || extracted.combined.isNotEmpty()) {
+                if (shownRule != null || extracted.combined.isNotEmpty()) {
                     val details = runCatching { NotificationCapture.capture(n, args) }
                         .getOrDefault(NotificationDetails())
                         .copy(spamScore = verdict?.score, spamProtected = verdict?.protected == true)
-                    log(context, resolved, extracted, hit, details)
+                    log(context, resolved, extracted, hit != null, shownRule, details)
                 }
             } catch (t: Throwable) {
                 Xp.log("log failed", t)
@@ -148,7 +195,9 @@ internal class KeywordFilter {
         pkg: String,
         text: String,
         hit: BlockRule?,
+        shownRule: BlockRule?,
         verdict: SpamJudge.Verdict?,
+        skipAi: Boolean,
     ): String {
         val rules = config.rules.joinToString("; ") { rule ->
             val name = rule.name.ifBlank { rule.id }
@@ -159,16 +208,21 @@ internal class KeywordFilter {
             } else {
                 " exclude=" + rule.excludeKeywords.joinToString(",")
             }
-            "$name/$on/${rule.mode.id}/[$keys]$exclude"
+            "$name/$on/${rule.action.id}/${rule.mode.id}/[$keys]$exclude"
         }.ifBlank { "(none)" }
         val snippet = clipText(text)
-        val result = if (hit == null) "allow" else "block:" + hit.name.ifBlank { hit.id }
+        val result = when {
+            hit != null -> "block:" + hit.name.ifBlank { hit.id }
+            shownRule != null -> "allow:" + shownRule.name.ifBlank { shownRule.id }
+            else -> "allow"
+        }
+        val ai = if (skipAi) " ai=skipped" else ""
         val spam = when {
             verdict == null -> ""
             verdict.protected -> " spam=%.3f(protected)".format(java.util.Locale.ROOT, verdict.score)
             else -> " spam=%.3f".format(java.util.Locale.ROOT, verdict.score)
         }
-        return "judge enabled=${config.enabled} spamEnabled=${config.spamEnabled} rules={$rules} pkg=$pkg result=$result$spam text=$snippet"
+        return "judge enabled=${config.enabled} spamEnabled=${config.spamEnabled} rules={$rules} pkg=$pkg result=$result$spam$ai text=$snippet"
     }
 
     private fun clipText(text: String): String {
@@ -180,7 +234,8 @@ internal class KeywordFilter {
         context: Context?,
         packageName: String,
         extracted: NotificationText.Extracted,
-        hit: BlockRule?,
+        blocked: Boolean,
+        rule: BlockRule?,
         details: NotificationDetails,
     ) {
         val ctx = context ?: return
@@ -189,9 +244,9 @@ internal class KeywordFilter {
             put(NotificationLogProvider.COL_TITLE, extracted.title)
             put(NotificationLogProvider.COL_TEXT, extracted.body)
             put(NotificationLogProvider.COL_TIMESTAMP, System.currentTimeMillis())
-            put(NotificationLogProvider.COL_BLOCKED, if (hit != null) 1 else 0)
-            put(NotificationLogProvider.COL_RULE_ID, hit?.id)
-            put(NotificationLogProvider.COL_RULE_NAME, hit?.name)
+            put(NotificationLogProvider.COL_BLOCKED, if (blocked) 1 else 0)
+            put(NotificationLogProvider.COL_RULE_ID, rule?.id)
+            put(NotificationLogProvider.COL_RULE_NAME, rule?.name)
             put(NotificationLogProvider.COL_DETAILS, NotificationDetailsCodec.toJson(details))
         }
         try {

@@ -73,14 +73,16 @@ fun AppPickerScreen(
     var listMode by remember { mutableStateOf(appListMode) }
     var filterMenu by remember { mutableStateOf(false) }
 
-    val filtered = remember(apps, query, userOnly) {
+    // 打开时已选中的应用排在最前（按打开时的选择排序，勾选过程中列表不会跳动）。
+    val initiallySelected = remember { selected.toSet() }
+    val filtered = remember(apps, query, userOnly, initiallySelected) {
         val q = query.trim()
         apps.filter { app ->
             (!userOnly || !app.isSystem) &&
                 (q.isEmpty() ||
                     app.label.contains(q, ignoreCase = true) ||
                     app.packageName.contains(q, ignoreCase = true))
-        }
+        }.sortedBy { if (it.packageName in initiallySelected) 0 else 1 }
     }
 
     Scaffold(

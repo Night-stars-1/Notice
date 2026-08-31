@@ -1,6 +1,7 @@
 package moe.notice.filter.data
 
 import android.content.Context
+import android.content.Intent
 import android.content.SharedPreferences
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -15,8 +16,9 @@ import moe.notice.filter.domain.FilterConfig
  * 除非已绑定框架服务，否则不会写入任何内容。
  */
 class RuleRepository(context: Context) {
+    private val appContext: Context = context.applicationContext
     private val cache: SharedPreferences =
-        context.applicationContext.getSharedPreferences(FilterPrefs.NAME, Context.MODE_PRIVATE)
+        appContext.getSharedPreferences(FilterPrefs.NAME, Context.MODE_PRIVATE)
 
     @Volatile
     private var remote: SharedPreferences? = null
@@ -65,6 +67,8 @@ class RuleRepository(context: Context) {
 
     fun setDebugLogEnabled(enabled: Boolean): Boolean = save(_config.value.copy(debugLogEnabled = enabled))
 
+    fun setJudgeLogEnabled(enabled: Boolean): Boolean = save(_config.value.copy(judgeLogEnabled = enabled))
+
     fun upsert(rule: BlockRule): Boolean {
         val current = _config.value
         val rules = current.rules.toMutableList()
@@ -77,6 +81,15 @@ class RuleRepository(context: Context) {
     fun delete(ruleId: String): Boolean {
         val current = _config.value
         return save(current.copy(rules = current.rules.filterNot { it.id == ruleId }))
+    }
+
+    /** 按给定 id 顺序重排规则（优先级 = 列表顺序）；未列出的规则保持相对顺序排在最后。 */
+    fun reorder(orderedIds: List<String>): Boolean {
+        val current = _config.value
+        val byId = current.rules.associateBy { it.id }
+        val ordered = orderedIds.mapNotNull { byId[it] } + current.rules.filter { it.id !in orderedIds }
+        if (ordered.map { it.id } == current.rules.map { it.id }) return true
+        return save(current.copy(rules = ordered))
     }
 
     fun toggleRule(ruleId: String, enabled: Boolean): Boolean {
@@ -95,6 +108,12 @@ class RuleRepository(context: Context) {
             .commit()
         cacheLocally(config)
         _config.value = config
+        notifyModule()
+    }
+
+    /** 主动通知 system_server 重新加载：远程偏好的 OnSharedPreferenceChangeListener 在部分框架上不会触发。 */
+    private fun notifyModule() {
+        runCatching { appContext.sendBroadcast(Intent(FilterPrefs.ACTION_RELOAD)) }
     }
 
     private fun cacheLocally(config: FilterConfig) {

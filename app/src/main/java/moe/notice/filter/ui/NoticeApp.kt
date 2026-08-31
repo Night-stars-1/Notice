@@ -300,6 +300,7 @@ fun NoticeApp(
                         onSpamThresholdChange = viewModel::setSpamThreshold,
                         onOpenDebugLog = { showDebugLog = true },
                         onDebugLogEnabledChange = viewModel::setDebugLogEnabled,
+                        onJudgeLogEnabledChange = viewModel::setJudgeLogEnabled,
                         appearance = appearance,
                         onDarkModeChange = viewModel::setDarkMode,
                         onDynamicColorChange = viewModel::setDynamicColor,
@@ -320,6 +321,7 @@ fun NoticeApp(
                             draft = it
                         },
                         onDeleteRule = viewModel::deleteRule,
+                        onReorderRules = viewModel::reorderRules,
                         onClearLogs = viewModel::clearLogs,
                         snackbar = snackbar,
                     )
@@ -346,6 +348,7 @@ private fun HomeScaffold(
     onSpamThresholdChange: (Float) -> Unit,
     onOpenDebugLog: () -> Unit,
     onDebugLogEnabledChange: (Boolean) -> Unit,
+    onJudgeLogEnabledChange: (Boolean) -> Unit,
     appearance: Appearance,
     onDarkModeChange: (DarkMode) -> Unit,
     onDynamicColorChange: (Boolean) -> Unit,
@@ -363,6 +366,7 @@ private fun HomeScaffold(
     onToggleRule: (String, Boolean) -> Unit,
     onEditRule: (BlockRule) -> Unit,
     onDeleteRule: (String) -> Unit,
+    onReorderRules: (List<String>) -> Unit,
     onClearLogs: () -> Unit,
     snackbar: SnackbarHostState,
 ) {
@@ -593,6 +597,7 @@ private fun HomeScaffold(
                     onToggleRule = onToggleRule,
                     onEditRule = onEditRule,
                     onDeleteRule = onDeleteRule,
+                    onReorderRules = onReorderRules,
                     contentPadding = padding,
                 )
                 1 -> LogsScreen(
@@ -614,6 +619,7 @@ private fun HomeScaffold(
                     onSpamThresholdChange = onSpamThresholdChange,
                     onOpenDebugLog = onOpenDebugLog,
                     onDebugLogEnabledChange = onDebugLogEnabledChange,
+                    onJudgeLogEnabledChange = onJudgeLogEnabledChange,
                     appearance = appearance,
                     onDarkModeChange = onDarkModeChange,
                     onDynamicColorChange = onDynamicColorChange,
