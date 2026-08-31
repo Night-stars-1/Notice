@@ -132,7 +132,8 @@ jobs:
           RANGE="${PREV:+$PREV..}$TAG"
           MARK="## 更新内容"
           git log --no-merges --pretty=format:'- %s (%h)' "$RANGE" > commits.md
-          git log --no-merges --pretty=format:'%n### %h %s%n%b' --stat=120 "$RANGE" > commits-detail.txt
+          # 只给模型提交标题和正文（不含文件统计），并限制体积，避免第三方网关生成超时
+          git log --no-merges --pretty=format:'%n### %h %s%n%b' "$RANGE" > commits-detail.txt
           if [ -n "$PREV" ]; then
             COMPARE="https://github.com/$GITHUB_REPOSITORY/compare/$PREV...$TAG"
           else
@@ -142,22 +143,27 @@ jobs:
           AI_NOTES=""
           if [ "$HAS_AI" = "true" ] && [ -s commits-detail.txt ]; then
             SYSTEM='你是 Android 应用 Notice（LSPosed 通知过滤模块：关键词规则 + 离线 AI 骚扰识别 + 端侧微调）的发布说明撰写者。根据给出的 git 提交记录写一份面向普通用户的更新说明。硬性要求：全文必须使用简体中文（提交记录是英文，需要翻译成中文，不要照抄英文句子）；用 Markdown；按「✨ 新功能」「🔧 改进」「🐛 修复」分组，没有内容的组省略；每条一句话，说用户能感知到的变化，不要出现类名、函数名、binder、正则、ICU 之类实现细节；不要编造提交里没有的内容；不要写标题和开场白，直接输出分组列表。'
-            USER_MSG="$(printf '版本：%s\n请用简体中文撰写更新说明。\n提交记录（含改动文件统计）：\n%s' "$TAG" "$(head -c 60000 commits-detail.txt)")"
+            USER_MSG="$(printf '版本：%s\n请用简体中文撰写更新说明。\n提交记录：\n%s' "$TAG" "$(head -c 20000 commits-detail.txt)")"
             # 兼容 AI_BASE_URL 的几种写法：.../v1、.../v1/chat/completions、或不带 /v1（404 时自动补上重试）
             BASE="${AI_BASE_URL%/}"
             case "$BASE" in */chat/completions) URL="$BASE" ;; *) URL="$BASE/chat/completions" ;; esac
             ask_ai() {
               local extra_sys="$1" payload http
               payload="$(jq -n --arg model "$AI_MODEL" --arg sys "$SYSTEM$extra_sys" --arg user "$USER_MSG" \
-                '{model: $model, temperature: 0.3, messages: [{role: "system", content: $sys}, {role: "user", content: $user}]}')"
-              http="$(curl -sS --max-time 180 -o resp.json -w '%{http_code}' "$URL" \
-                -H "Authorization: Bearer $AI_API_KEY" -H "Content-Type: application/json" -d "$payload" || echo 000)"
+                '{model: $model, temperature: 0.3, max_tokens: 1200, messages: [{role: "system", content: $sys}, {role: "user", content: $user}]}')"
+              post() { curl -sS --max-time 240 -o resp.json -w '%{http_code}' "$URL" \
+                -H "Authorization: Bearer $AI_API_KEY" -H "Content-Type: application/json" -d "$payload" || echo 000; }
+              http="$(post)"
               if [ "$http" = "404" ] && [[ "$URL" != */v1/* ]]; then
                 URL="$BASE/v1/chat/completions"
                 echo "::notice::接口返回 404，改用 $URL 重试。" >&2
-                http="$(curl -sS --max-time 180 -o resp.json -w '%{http_code}' "$URL" \
-                  -H "Authorization: Bearer $AI_API_KEY" -H "Content-Type: application/json" -d "$payload" || echo 000)"
+                http="$(post)"
               fi
+              # 5xx / 连接失败多为网关超时或瞬时故障：间隔重试两次
+              local attempt=0
+              while [ $attempt -lt 2 ] && { [ "$http" = "000" ] || [ "${http:0:1}" = "5" ]; }; do
+                attempt=$((attempt + 1)); echo "AI HTTP $http，${attempt} 次重试…" >&2; sleep 15; http="$(post)"
+              done
               echo "AI HTTP $http, model=$AI_MODEL, path=/${URL#*://*/}" >&2
               LAST_RESP="HTTP $http: $(head -c 400 resp.json 2>/dev/null)"
               [ "$http" = "200" ] || return 0
