@@ -10,4 +10,6 @@ data class NotificationRecord(
     val ruleId: String?,
     val ruleName: String?,
     val details: NotificationDetails = NotificationDetails(),
+    /** How many later updates of the same notification were merged into this record. */
+    val updateCount: Int = 0,
 )

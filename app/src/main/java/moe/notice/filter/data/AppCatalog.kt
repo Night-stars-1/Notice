@@ -1,7 +1,14 @@
 package moe.notice.filter.data
 
 import android.content.Context
+import moe.notice.filter.R
 import android.content.pm.ApplicationInfo
+
+/** Framework package used for legacy records whose package name was captured as blank. */
+const val SYSTEM_PACKAGE = "android"
+
+/** Legacy log rows captured system notifications with a blank package; display them as [SYSTEM_PACKAGE]. */
+fun String.orSystemPackage(): String = ifBlank { SYSTEM_PACKAGE }
 
 data class InstalledApp(
     val packageName: String,
@@ -24,10 +31,10 @@ class AppCatalog(private val context: Context) {
     }
 
     fun labelFor(packageName: String): String {
-        if (packageName.isBlank()) return packageName
+        val pkg = packageName.orSystemPackage()
         return runCatching {
-            val info = context.packageManager.getApplicationInfo(packageName, 0)
+            val info = context.packageManager.getApplicationInfo(pkg, 0)
             info.loadLabel(context.packageManager).toString()
-        }.getOrDefault(packageName)
+        }.getOrElse { if (pkg == SYSTEM_PACKAGE) context.getString(R.string.app_system) else pkg }
     }
 }

@@ -25,6 +25,8 @@ object NotificationDetailsCodec {
         put("actions", JSONArray(details.actions))
         put("textLines", JSONArray(details.textLines))
         put("messages", JSONArray(details.messages))
+        details.spamScore?.let { put("spamScore", it.toDouble()) }
+        if (details.spamProtected) put("spamProtected", true)
     }.toString()
 
     fun fromJson(raw: String?): NotificationDetails {
@@ -51,6 +53,8 @@ object NotificationDetailsCodec {
                 actions = obj.optJSONArray("actions").toStringList(),
                 textLines = obj.optJSONArray("textLines").toStringList(),
                 messages = obj.optJSONArray("messages").toStringList(),
+                spamScore = obj.optDouble("spamScore", Double.NaN).takeUnless { it.isNaN() }?.toFloat(),
+                spamProtected = obj.optBoolean("spamProtected", false),
             )
         }.getOrDefault(NotificationDetails())
     }

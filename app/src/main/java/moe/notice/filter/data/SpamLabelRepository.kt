@@ -1,0 +1,98 @@
+package moe.notice.filter.data
+
+import android.content.Context
+import java.io.File
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import moe.notice.filter.domain.NotificationRecord
+import org.json.JSONArray
+import org.json.JSONObject
+
+data class SpamLabel(
+    val recordId: String,
+    val packageName: String,
+    val text: String,
+    val spam: Boolean,
+    val timestamp: Long,
+)
+
+/** User-provided spam/ham labels for logged notifications; the training set for on-device tuning. */
+class SpamLabelRepository(context: Context) {
+    private val file = File(context.applicationContext.filesDir, FILE_NAME)
+    private val lock = Any()
+    private val _labels = MutableStateFlow(readLocked())
+    val labels: StateFlow<Map<String, SpamLabel>> = _labels.asStateFlow()
+
+    fun set(record: NotificationRecord, spam: Boolean) {
+        val label = SpamLabel(
+            recordId = record.id,
+            packageName = record.packageName,
+            text = trainingText(record),
+            spam = spam,
+            timestamp = System.currentTimeMillis(),
+        )
+        update { it[record.id] = label }
+    }
+
+    fun remove(recordId: String) = update { it.remove(recordId) }
+
+    fun clear() = update { it.clear() }
+
+    private fun update(block: (MutableMap<String, SpamLabel>) -> Unit) {
+        synchronized(lock) {
+            val next = LinkedHashMap(_labels.value)
+            block(next)
+            writeLocked(next)
+            _labels.value = next
+        }
+    }
+
+    private fun readLocked(): Map<String, SpamLabel> {
+        if (!file.exists()) return emptyMap()
+        val raw = runCatching { file.readText() }.getOrNull().orEmpty()
+        if (raw.isBlank()) return emptyMap()
+        return runCatching {
+            val array = JSONArray(raw)
+            val out = LinkedHashMap<String, SpamLabel>(array.length())
+            for (i in 0 until array.length()) {
+                val obj = array.getJSONObject(i)
+                val id = obj.optString("recordId")
+                if (id.isBlank()) continue
+                out[id] = SpamLabel(
+                    recordId = id,
+                    packageName = obj.optString("packageName"),
+                    text = obj.optString("text"),
+                    spam = obj.optBoolean("spam"),
+                    timestamp = obj.optLong("timestamp"),
+                )
+            }
+            out
+        }.getOrDefault(emptyMap())
+    }
+
+    private fun writeLocked(items: Map<String, SpamLabel>) {
+        val array = JSONArray()
+        for (item in items.values) {
+            array.put(
+                JSONObject().apply {
+                    put("recordId", item.recordId)
+                    put("packageName", item.packageName)
+                    put("text", item.text)
+                    put("spam", item.spam)
+                    put("timestamp", item.timestamp)
+                },
+            )
+        }
+        file.parentFile?.mkdirs()
+        file.writeText(array.toString())
+    }
+
+    companion object {
+        private const val FILE_NAME = "spam_labels.json"
+
+        /** Approximates the combined text system_server scores (title + body). */
+        fun trainingText(record: NotificationRecord): String =
+            listOf(record.title, record.text).filter { it.isNotBlank() }.joinToString("\n")
+    }
+}

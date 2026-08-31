@@ -50,6 +50,19 @@ class RuleRepository(context: Context) {
 
     fun setLogEnabled(logEnabled: Boolean): Boolean = save(_config.value.copy(logEnabled = logEnabled))
 
+    fun setSpamEnabled(spamEnabled: Boolean): Boolean = save(_config.value.copy(spamEnabled = spamEnabled))
+
+    fun setSpamThreshold(threshold: Float): Boolean = save(
+        _config.value.copy(
+            spamThreshold = threshold.coerceIn(FilterConfig.MIN_SPAM_THRESHOLD, FilterConfig.MAX_SPAM_THRESHOLD),
+        ),
+    )
+
+    fun setSpamExcludedPackages(packages: List<String>): Boolean =
+        save(_config.value.copy(spamExcludedPackages = packages.distinct().sorted()))
+
+    fun setSpamDeltaVersion(version: Long): Boolean = save(_config.value.copy(spamDeltaVersion = version))
+
     fun upsert(rule: BlockRule): Boolean {
         val current = _config.value
         val rules = current.rules.toMutableList()

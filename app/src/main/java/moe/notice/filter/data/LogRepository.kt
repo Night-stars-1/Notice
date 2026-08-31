@@ -11,7 +11,7 @@ import moe.notice.filter.domain.NotificationRecord
 import org.json.JSONArray
 import org.json.JSONObject
 
-class LogRepository private constructor(private val file: File) {
+class LogRepository internal constructor(private val file: File) {
     private val lock = Any()
     private val _items = MutableStateFlow(readLocked())
     val items: StateFlow<List<NotificationRecord>> = _items.asStateFlow()
@@ -38,17 +38,40 @@ class LogRepository private constructor(private val file: File) {
             details = details,
         )
         synchronized(lock) {
-            val next = ArrayList<NotificationRecord>(MAX_ITEMS)
-            next += record
-            for (item in _items.value) {
-                if (next.size >= MAX_ITEMS) break
-                next += item
+            val current = _items.value
+            val mergeIndex = if (isMergeable(record)) current.indexOfFirst { sameNotification(it, record) } else -1
+            val next: List<NotificationRecord>
+            val stored: NotificationRecord
+            if (mergeIndex >= 0) {
+                // Progress/ongoing updates of one live notification collapse into the existing row, in place.
+                val previous = current[mergeIndex]
+                stored = record.copy(id = previous.id, updateCount = previous.updateCount + 1)
+                next = current.toMutableList().also { it[mergeIndex] = stored }
+            } else {
+                stored = record
+                val list = ArrayList<NotificationRecord>(MAX_ITEMS)
+                list += record
+                for (item in current) {
+                    if (list.size >= MAX_ITEMS) break
+                    list += item
+                }
+                next = list
             }
             writeLocked(next)
             _items.value = next
+            return stored
         }
-        return record
     }
+
+    /** Only progress-bar / ongoing notifications are merged; chat-style updates stay separate rows. */
+    private fun isMergeable(record: NotificationRecord): Boolean =
+        record.details.progress.isNotBlank() || record.details.flags and FLAG_ONGOING_EVENT != 0
+
+    private fun sameNotification(existing: NotificationRecord, incoming: NotificationRecord): Boolean =
+        existing.packageName == incoming.packageName &&
+            existing.details.notificationId == incoming.details.notificationId &&
+            existing.details.tag == incoming.details.tag &&
+            incoming.timestamp - existing.timestamp in 0..MERGE_WINDOW_MS
 
     fun clear() {
         synchronized(lock) {
@@ -94,6 +117,7 @@ class LogRepository private constructor(private val file: File) {
         put("ruleId", item.ruleId)
         put("ruleName", item.ruleName)
         put("details", NotificationDetailsCodec.toJson(item.details))
+        put("updateCount", item.updateCount)
     }
 
     private fun decode(obj: JSONObject): NotificationRecord = NotificationRecord(
@@ -106,10 +130,13 @@ class LogRepository private constructor(private val file: File) {
         ruleId = obj.optString("ruleId").ifBlank { null },
         ruleName = obj.optString("ruleName").ifBlank { null },
         details = NotificationDetailsCodec.fromJson(obj.optString("details")),
+        updateCount = obj.optInt("updateCount", 0),
     )
 
     companion object {
         private const val MAX_ITEMS = 500
+        private const val MERGE_WINDOW_MS = 10 * 60 * 1000L
+        private const val FLAG_ONGOING_EVENT = 0x00000002 // Notification.FLAG_ONGOING_EVENT (avoid android.jar in tests)
         private const val FILE_NAME = "notification_log.json"
 
         @Volatile

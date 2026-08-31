@@ -1,6 +1,7 @@
 package moe.notice.filter
 
 import android.content.SharedPreferences
+import android.os.ParcelFileDescriptor
 import android.util.Log
 import io.github.libxposed.service.XposedService
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -35,6 +36,17 @@ object ModuleStatus {
             current.getRemotePreferences(FilterPrefs.NAME)
         } catch (t: Throwable) {
             Log.w("Notice", "remote preferences unavailable", t)
+            null
+        }
+    }
+
+    /** Opens (creating if needed) a file in the module's framework-side data dir; null when inactive. */
+    fun openRemoteFile(name: String): ParcelFileDescriptor? {
+        val current = service ?: return null
+        return try {
+            current.openRemoteFile(name)
+        } catch (t: Throwable) {
+            Log.w("Notice", "remote file unavailable: $name", t)
             null
         }
     }

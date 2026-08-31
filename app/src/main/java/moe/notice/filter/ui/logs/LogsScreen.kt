@@ -1,16 +1,33 @@
 package moe.notice.filter.ui.logs
 
 import android.app.Notification
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.material.icons.outlined.KeyboardArrowUp
+import androidx.compose.material3.SmallFloatingActionButton
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -18,8 +35,15 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Report
+import androidx.compose.material.icons.outlined.CheckCircle
+import androidx.compose.material.icons.outlined.Report
 import androidx.compose.material.icons.outlined.NotificationsOff
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.ButtonGroupDefaults
+import androidx.compose.material3.ToggleButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
@@ -34,14 +58,18 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import java.text.DateFormat
 import java.util.Calendar
 import java.util.Date
+import java.util.Locale
 import moe.notice.filter.R
 import moe.notice.filter.ui.theme.groupedListShape
+import moe.notice.filter.data.orSystemPackage
 import moe.notice.filter.domain.NotificationRecord
+import moe.notice.filter.domain.SpamJudge
 import moe.notice.filter.ui.rules.AppIcon
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -50,21 +78,24 @@ fun LogsScreen(
     records: List<NotificationRecord>,
     query: String,
     filter: Int,
-    appPackage: String?,
+    appPackages: Set<String>,
     appLabel: (String) -> String,
+    labels: Map<String, Boolean>,
+    onLabel: (NotificationRecord, Boolean?) -> Unit,
     contentPadding: PaddingValues,
 ) {
     var selected by remember { mutableStateOf<NotificationRecord?>(null) }
-    val visible = remember(records, filter, query, appPackage) {
+    val visible = remember(records, filter, query, appPackages) {
         val q = query.trim()
         records.filter { item ->
             val pass = when (filter) {
                 1 -> item.blocked
                 2 -> !item.blocked
+                3 -> item.blocked && item.ruleId == SpamJudge.RULE_ID
                 else -> true
             }
             if (!pass) return@filter false
-            if (appPackage != null && item.packageName != appPackage) return@filter false
+            if (appPackages.isNotEmpty() && item.packageName.orSystemPackage() !in appPackages) return@filter false
             if (q.isEmpty()) return@filter true
             item.title.contains(q, ignoreCase = true) ||
                 item.text.contains(q, ignoreCase = true) ||
@@ -111,8 +142,27 @@ fun LogsScreen(
                 }
             }
         } else {
+            val listState = rememberLazyListState()
+            val scope = rememberCoroutineScope()
+            // Shown after scrolling a few items down, but only while the user is scrolling back up.
+            var scrollingUp by remember { mutableStateOf(false) }
+            val nestedScroll = remember {
+                object : NestedScrollConnection {
+                    override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                        if (available.y > 0.5f) scrollingUp = true else if (available.y < -0.5f) scrollingUp = false
+                        return Offset.Zero
+                    }
+                }
+            }
+            val showTop by remember {
+                derivedStateOf { scrollingUp && listState.firstVisibleItemIndex >= 3 }
+            }
+            Box(modifier = Modifier.fillMaxSize()) {
             LazyColumn(
-                modifier = Modifier.fillMaxSize(),
+                state = listState,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .nestedScroll(nestedScroll),
                 contentPadding = PaddingValues(
                     top = contentPadding.calculateTopPadding() + 8.dp,
                     bottom = contentPadding.calculateBottomPadding() + 16.dp,
@@ -128,6 +178,24 @@ fun LogsScreen(
                     )
                 }
             }
+            androidx.compose.animation.AnimatedVisibility(
+                visible = showTop,
+                enter = scaleIn() + fadeIn(),
+                exit = scaleOut() + fadeOut(),
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(end = 16.dp, bottom = contentPadding.calculateBottomPadding() + 16.dp),
+            ) {
+                SmallFloatingActionButton(
+                    onClick = { scope.launch { listState.animateScrollToItem(0) } },
+                ) {
+                    Icon(
+                        Icons.Outlined.KeyboardArrowUp,
+                        contentDescription = stringResource(R.string.scroll_to_top),
+                    )
+                }
+            }
+            }
         }
     }
 
@@ -136,6 +204,8 @@ fun LogsScreen(
             NotificationDetailSheet(
                 record = record,
                 appLabel = appLabel(record.packageName),
+                label = labels[record.id],
+                onLabel = { onLabel(record, it) },
             )
         }
     }
@@ -160,6 +230,10 @@ private fun LogCard(
         if (item.blocked && !item.ruleName.isNullOrBlank()) {
             append(" · ")
             append(item.ruleName)
+        }
+        if (item.updateCount > 0) {
+            append(" · ")
+            append(stringResource(R.string.log_updated_times, item.updateCount))
         }
     }
     val badgeContainer = if (item.blocked) {
@@ -213,18 +287,39 @@ private fun LogCard(
                     )
                 }
             }
-            Surface(
-                shape = CircleShape,
-                color = badgeContainer,
-                contentColor = badgeContent,
+            Column(
+                modifier = Modifier.width(IntrinsicSize.Max),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(2.dp),
             ) {
-                Text(
-                    text = stringResource(
-                        if (item.blocked) R.string.badge_blocked else R.string.badge_allowed,
-                    ),
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
-                    style = MaterialTheme.typography.labelMediumEmphasized,
-                )
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = CircleShape,
+                    color = badgeContainer,
+                    contentColor = badgeContent,
+                ) {
+                    Text(
+                        text = stringResource(item.badgeTextRes()),
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                        style = MaterialTheme.typography.labelMediumEmphasized,
+                        textAlign = TextAlign.Center,
+                    )
+                }
+                item.details.spamScore?.let { score ->
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = CircleShape,
+                        color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                        contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    ) {
+                        Text(
+                            text = formatScore(score),
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                            style = MaterialTheme.typography.labelMediumEmphasized,
+                            textAlign = TextAlign.Center,
+                        )
+                    }
+                }
             }
         }
     }
@@ -234,6 +329,8 @@ private fun LogCard(
 private fun NotificationDetailSheet(
     record: NotificationRecord,
     appLabel: String,
+    label: Boolean?,
+    onLabel: (Boolean?) -> Unit,
 ) {
     val details = record.details
     Column(
@@ -277,14 +374,13 @@ private fun NotificationDetailSheet(
                 },
             ) {
                 Text(
-                    text = stringResource(
-                        if (record.blocked) R.string.badge_blocked else R.string.badge_allowed,
-                    ),
+                    text = stringResource(record.badgeTextRes()),
                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
                     style = MaterialTheme.typography.labelLargeEmphasized,
                 )
             }
         }
+        LabelCard(label = label, onLabel = onLabel)
         Surface(
             shape = MaterialTheme.shapes.large,
             color = MaterialTheme.colorScheme.surfaceContainerLow,
@@ -296,7 +392,7 @@ private fun NotificationDetailSheet(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 DetailRow(stringResource(R.string.log_detail_app), appLabel)
-                DetailRow(stringResource(R.string.log_detail_package), record.packageName)
+                DetailRow(stringResource(R.string.log_detail_package), record.packageName.orSystemPackage())
                 DetailRow(
                     stringResource(R.string.log_detail_status),
                     stringResource(if (record.blocked) R.string.badge_blocked else R.string.badge_allowed),
@@ -304,10 +400,20 @@ private fun NotificationDetailSheet(
                 if (record.blocked && !record.ruleName.isNullOrBlank()) {
                     DetailRow(stringResource(R.string.log_detail_rule), record.ruleName.orEmpty())
                 }
+                details.spamScore?.let { score ->
+                    val shown = formatScore(score)
+                    DetailRow(
+                        stringResource(R.string.log_detail_spam_score),
+                        if (details.spamProtected) stringResource(R.string.log_spam_protected, shown) else shown,
+                    )
+                }
                 DetailRow(
                     stringResource(R.string.log_detail_time),
                     DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.MEDIUM).format(Date(record.timestamp)),
                 )
+                if (record.updateCount > 0) {
+                    DetailRow(stringResource(R.string.log_detail_updates), record.updateCount.toString())
+                }
                 DetailRow(stringResource(R.string.log_detail_title_field), record.title)
                 DetailRow(stringResource(R.string.log_detail_text), record.text)
                 DetailRow(stringResource(R.string.log_detail_big_title), details.bigTitle)
@@ -382,5 +488,74 @@ private fun formatTime(timestamp: Long): String {
         DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(timestamp))
     } else {
         DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT).format(Date(timestamp))
+    }
+}
+
+private fun formatScore(score: Float): String = String.format(Locale.ROOT, "%.2f", score)
+
+/** Badge label: "AI" for model blocks, otherwise blocked/allowed. */
+private fun NotificationRecord.badgeTextRes(): Int = when {
+    !blocked -> R.string.badge_allowed
+    ruleId == SpamJudge.RULE_ID -> R.string.badge_ai
+    else -> R.string.badge_blocked
+}
+
+/**
+ * Spam/ham labelling as an M3 connected button group inside a card that matches the detail cards.
+ * From M3: connected group spans the surface, 2dp between buttons, connected leading/trailing
+ * shapes, selected toggle = filled + square, unselected = tonal + round, outlined icon → filled icon
+ * on selection. My decisions: the caption above the group and the 12dp card padding.
+ */
+@Composable
+private fun LabelCard(label: Boolean?, onLabel: (Boolean?) -> Unit) {
+    Surface(
+        shape = MaterialTheme.shapes.large,
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text(
+                text = stringResource(R.string.label_section),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween),
+            ) {
+                ToggleButton(
+                    checked = label == true,
+                    onCheckedChange = { onLabel(if (it) true else null) },
+                    modifier = Modifier.weight(1f),
+                    shapes = ButtonGroupDefaults.connectedLeadingButtonShapes(),
+                ) {
+                    Icon(
+                        imageVector = if (label == true) Icons.Filled.Report else Icons.Outlined.Report,
+                        contentDescription = null,
+                        modifier = Modifier.size(ButtonDefaults.IconSize),
+                    )
+                    Spacer(Modifier.size(ButtonDefaults.IconSpacing))
+                    Text(stringResource(R.string.label_spam))
+                }
+                ToggleButton(
+                    checked = label == false,
+                    onCheckedChange = { onLabel(if (it) false else null) },
+                    modifier = Modifier.weight(1f),
+                    shapes = ButtonGroupDefaults.connectedTrailingButtonShapes(),
+                ) {
+                    Icon(
+                        imageVector = if (label == false) Icons.Filled.CheckCircle else Icons.Outlined.CheckCircle,
+                        contentDescription = null,
+                        modifier = Modifier.size(ButtonDefaults.IconSize),
+                    )
+                    Spacer(Modifier.size(ButtonDefaults.IconSpacing))
+                    Text(stringResource(R.string.label_ham))
+                }
+            }
+        }
     }
 }

@@ -54,6 +54,7 @@ import androidx.core.graphics.drawable.toBitmap
 import moe.notice.filter.R
 import moe.notice.filter.domain.AppListMode
 import moe.notice.filter.data.InstalledApp
+import moe.notice.filter.data.orSystemPackage
 import moe.notice.filter.ui.theme.groupedListShape
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -64,6 +65,7 @@ fun AppPickerScreen(
     appListMode: AppListMode,
     onConfirm: (List<String>, AppListMode) -> Unit,
     onBack: () -> Unit,
+    showModeSelector: Boolean = true,
 ) {
     var query by remember { mutableStateOf("") }
     var checked by remember { mutableStateOf(selected.toSet()) }
@@ -99,7 +101,7 @@ fun AppPickerScreen(
                 title = { Text(stringResource(R.string.choose_apps)) },
                 subtitle = {
                     Text(
-                        stringResource(listMode.labelRes()) + " · " +
+                        (if (showModeSelector) stringResource(listMode.labelRes()) + " · " else "") +
                             if (checked.isEmpty()) {
                                 stringResource(R.string.apps_all)
                             } else {
@@ -145,21 +147,23 @@ fun AppPickerScreen(
                                 expanded = filterMenu,
                                 onDismissRequest = { filterMenu = false },
                             ) {
-                                AppListMode.entries.forEach { item ->
-                                    DropdownMenuItem(
-                                        text = { Text(stringResource(item.labelRes())) },
-                                        onClick = {
-                                            listMode = item
-                                            filterMenu = false
-                                        },
-                                        trailingIcon = {
-                                            if (item == listMode) {
-                                                Icon(Icons.Outlined.Check, contentDescription = null)
-                                            }
-                                        },
-                                    )
+                                if (showModeSelector) {
+                                    AppListMode.entries.forEach { item ->
+                                        DropdownMenuItem(
+                                            text = { Text(stringResource(item.labelRes())) },
+                                            onClick = {
+                                                listMode = item
+                                                filterMenu = false
+                                            },
+                                            trailingIcon = {
+                                                if (item == listMode) {
+                                                    Icon(Icons.Outlined.Check, contentDescription = null)
+                                                }
+                                            },
+                                        )
+                                    }
+                                    HorizontalDivider()
                                 }
-                                HorizontalDivider()
                                 DropdownMenuItem(
                                     text = { Text(stringResource(R.string.user_apps_only)) },
                                     onClick = {
@@ -244,7 +248,7 @@ fun AppIcon(packageName: String, modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val bitmap = remember(packageName) {
         runCatching {
-            context.packageManager.getApplicationIcon(packageName)
+            context.packageManager.getApplicationIcon(packageName.orSystemPackage())
                 .toBitmap(width = 96, height = 96)
                 .asImageBitmap()
         }.getOrNull()

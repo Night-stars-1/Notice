@@ -27,6 +27,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.FilterAlt
@@ -79,6 +80,9 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.launch
 import moe.notice.filter.R
+import moe.notice.filter.data.InstalledApp
+import moe.notice.filter.data.SYSTEM_PACKAGE
+import moe.notice.filter.data.orSystemPackage
 import moe.notice.filter.domain.AppListMode
 import moe.notice.filter.domain.BlockRule
 import moe.notice.filter.domain.FilterConfig
@@ -101,6 +105,7 @@ fun NoticeApp(
         val records by viewModel.records.collectAsStateWithLifecycle()
         val apps by viewModel.apps.collectAsStateWithLifecycle()
         val moduleStatus by viewModel.moduleStatus.collectAsStateWithLifecycle()
+        val labels by viewModel.labels.collectAsStateWithLifecycle()
         var tab by remember { mutableIntStateOf(0) }
         LaunchedEffect(openLogs) {
             if (openLogs) {
@@ -111,6 +116,9 @@ fun NoticeApp(
         var draft by remember { mutableStateOf<BlockRule?>(null) }
         var isNew by remember { mutableStateOf(false) }
         var pickingApps by remember { mutableStateOf(false) }
+        var pickingSpamApps by remember { mutableStateOf(false) }
+        var pickingLogApps by remember { mutableStateOf(false) }
+        var logAppPackages by remember { mutableStateOf<Set<String>>(emptySet()) }
         val snackbar = remember { SnackbarHostState() }
         val scope = rememberCoroutineScope()
         val context = LocalContext.current
@@ -149,13 +157,19 @@ fun NoticeApp(
         }
 
         val screen = when {
+            pickingSpamApps || pickingLogApps -> Screen.Apps
             pickingApps && draft != null -> Screen.Apps
             draft != null -> Screen.Editor
             else -> Screen.Home
         }
         if (screen != Screen.Home) {
             BackHandler {
-                if (screen == Screen.Apps) pickingApps = false else draft = null
+                when {
+                    pickingSpamApps -> pickingSpamApps = false
+                    pickingLogApps -> pickingLogApps = false
+                    screen == Screen.Apps -> pickingApps = false
+                    else -> draft = null
+                }
             }
         }
         AnimatedContent(
@@ -165,16 +179,53 @@ fun NoticeApp(
             label = "screen",
         ) { current ->
             when (current) {
-                Screen.Apps -> AppPickerScreen(
-                    apps = apps,
-                    selected = draft?.packages.orEmpty(),
-                    appListMode = draft?.appListMode ?: AppListMode.WHITELIST,
-                    onConfirm = { packages, mode ->
-                        draft = draft?.copy(packages = packages, appListMode = mode)
-                        pickingApps = false
-                    },
-                    onBack = { pickingApps = false },
-                )
+                Screen.Apps -> if (pickingLogApps) {
+                    // Only apps that appear in the log; uninstalled ones fall back to the package name.
+                    val logApps = remember(records, apps) {
+                        records.map { it.packageName.orSystemPackage() }.distinct().map { pkg ->
+                            apps.firstOrNull { it.packageName == pkg }
+                                ?: InstalledApp(
+                                    packageName = pkg,
+                                    label = viewModel.labelFor(pkg),
+                                    isSystem = pkg == SYSTEM_PACKAGE,
+                                )
+                        }.sortedBy { it.label }
+                    }
+                    AppPickerScreen(
+                        apps = logApps,
+                        selected = logAppPackages.toList(),
+                        appListMode = AppListMode.WHITELIST,
+                        onConfirm = { packages, _ ->
+                            logAppPackages = packages.toSet()
+                            pickingLogApps = false
+                        },
+                        onBack = { pickingLogApps = false },
+                        showModeSelector = false,
+                    )
+                } else if (pickingSpamApps) {
+                    AppPickerScreen(
+                        apps = apps,
+                        selected = config.spamExcludedPackages,
+                        appListMode = AppListMode.BLACKLIST,
+                        onConfirm = { packages, _ ->
+                            viewModel.setSpamExcludedPackages(packages)
+                            pickingSpamApps = false
+                        },
+                        onBack = { pickingSpamApps = false },
+                        showModeSelector = false,
+                    )
+                } else {
+                    AppPickerScreen(
+                        apps = apps,
+                        selected = draft?.packages.orEmpty(),
+                        appListMode = draft?.appListMode ?: AppListMode.WHITELIST,
+                        onConfirm = { packages, mode ->
+                            draft = draft?.copy(packages = packages, appListMode = mode)
+                            pickingApps = false
+                        },
+                        onBack = { pickingApps = false },
+                    )
+                }
                 Screen.Editor -> {
                     val editing = draft ?: return@AnimatedContent
                     RuleEditorScreen(
@@ -210,6 +261,17 @@ fun NoticeApp(
                         appLabel = viewModel::labelFor,
                         onEnabledChange = viewModel::setEnabled,
                         onLogEnabledChange = viewModel::setLogEnabled,
+                        onSpamEnabledChange = viewModel::setSpamEnabled,
+                        onSpamThresholdChange = viewModel::setSpamThreshold,
+                        spamExcludedCount = config.spamExcludedPackages.size,
+                        onPickSpamApps = { pickingSpamApps = true },
+                        tuneSampleCount = labels.size,
+                        onClearLabels = viewModel::clearLabels,
+                        labels = labels.mapValues { it.value.spam },
+                        onLabel = viewModel::setLabel,
+                        logAppPackages = logAppPackages,
+                        onPickLogApps = { pickingLogApps = true },
+                        onClearLogApps = { logAppPackages = emptySet() },
                         onToggleRule = viewModel::toggleRule,
                         onEditRule = {
                             isNew = false
@@ -238,6 +300,17 @@ private fun HomeScaffold(
     appLabel: (String) -> String,
     onEnabledChange: (Boolean) -> Unit,
     onLogEnabledChange: (Boolean) -> Unit,
+    onSpamEnabledChange: (Boolean) -> Unit,
+    onSpamThresholdChange: (Float) -> Unit,
+    spamExcludedCount: Int,
+    onPickSpamApps: () -> Unit,
+    tuneSampleCount: Int,
+    onClearLabels: () -> Unit,
+    labels: Map<String, Boolean>,
+    onLabel: (NotificationRecord, Boolean?) -> Unit,
+    logAppPackages: Set<String>,
+    onPickLogApps: () -> Unit,
+    onClearLogApps: () -> Unit,
     onToggleRule: (String, Boolean) -> Unit,
     onEditRule: (BlockRule) -> Unit,
     onDeleteRule: (String) -> Unit,
@@ -248,9 +321,7 @@ private fun HomeScaffold(
     var logQuery by remember { mutableStateOf("") }
     var searching by remember { mutableStateOf(false) }
     var logFilter by remember { mutableIntStateOf(0) }
-    var logAppPackage by remember { mutableStateOf<String?>(null) }
     var filterMenu by remember { mutableStateOf(false) }
-    var appMenu by remember { mutableStateOf(false) }
     var confirmClearLogs by remember { mutableStateOf(false) }
     Scaffold(
         modifier = Modifier
@@ -263,9 +334,6 @@ private fun HomeScaffold(
                 scrolledContainerColor = MaterialTheme.colorScheme.surfaceContainer,
             )
             if (tab == 1 && searching) {
-                val logApps = remember(records) {
-                    records.map { it.packageName }.distinct().sortedBy(appLabel)
-                }
                 Surface(color = MaterialTheme.colorScheme.surface) {
                     Column(Modifier.statusBarsPadding().padding(bottom = 8.dp)) {
                         OutlinedTextField(
@@ -282,7 +350,7 @@ private fun HomeScaffold(
                                 IconButton(onClick = {
                                     searching = false
                                     logQuery = ""
-                                    logAppPackage = null
+                                    onClearLogApps()
                                 }) {
                                     Icon(
                                         Icons.Outlined.Close,
@@ -319,49 +387,24 @@ private fun HomeScaffold(
                                 onClick = { logFilter = 2 },
                                 label = { Text(stringResource(R.string.filter_allowed)) },
                             )
-                            Box {
-                                FilterChip(
-                                    selected = logAppPackage != null,
-                                    onClick = { appMenu = true },
-                                    label = {
-                                        Text(
-                                            logAppPackage?.let(appLabel)
-                                                ?: stringResource(R.string.apps_all),
-                                        )
-                                    },
-                                )
-                                DropdownMenu(
-                                    expanded = appMenu,
-                                    onDismissRequest = { appMenu = false },
-                                ) {
-                                    DropdownMenuItem(
-                                        text = { Text(stringResource(R.string.apps_all)) },
-                                        onClick = {
-                                            logAppPackage = null
-                                            appMenu = false
-                                        },
-                                        trailingIcon = {
-                                            if (logAppPackage == null) {
-                                                Icon(Icons.Outlined.Check, contentDescription = null)
-                                            }
+                            FilterChip(
+                                selected = logFilter == 3,
+                                onClick = { logFilter = 3 },
+                                label = { Text(stringResource(R.string.filter_ai)) },
+                            )
+                            FilterChip(
+                                selected = logAppPackages.isNotEmpty(),
+                                onClick = onPickLogApps,
+                                label = {
+                                    Text(
+                                        when (logAppPackages.size) {
+                                            0 -> stringResource(R.string.apps_all)
+                                            1 -> appLabel(logAppPackages.first())
+                                            else -> stringResource(R.string.apps_selected_short, logAppPackages.size)
                                         },
                                     )
-                                    logApps.forEach { pkg ->
-                                        DropdownMenuItem(
-                                            text = { Text(appLabel(pkg)) },
-                                            onClick = {
-                                                logAppPackage = pkg
-                                                appMenu = false
-                                            },
-                                            trailingIcon = {
-                                                if (logAppPackage == pkg) {
-                                                    Icon(Icons.Outlined.Check, contentDescription = null)
-                                                }
-                                            },
-                                        )
-                                    }
-                                }
-                            }
+                                },
+                            )
                         }
                     }
                 }
@@ -394,6 +437,7 @@ private fun HomeScaffold(
                                         0 to R.string.filter_all,
                                         1 to R.string.filter_blocked,
                                         2 to R.string.filter_allowed,
+                                        3 to R.string.filter_ai,
                                     ).forEach { (value, label) ->
                                         DropdownMenuItem(
                                             text = { Text(stringResource(label)) },
@@ -503,14 +547,22 @@ private fun HomeScaffold(
                     records = records,
                     query = logQuery,
                     filter = logFilter,
-                    appPackage = if (searching) logAppPackage else null,
+                    appPackages = if (searching) logAppPackages else emptySet(),
                     appLabel = appLabel,
+                    labels = labels,
+                    onLabel = onLabel,
                     contentPadding = padding,
                 )
                 else -> SettingsScreen(
                     config = config,
                     onEnabledChange = onEnabledChange,
                     onLogEnabledChange = onLogEnabledChange,
+                    onSpamEnabledChange = onSpamEnabledChange,
+                    onSpamThresholdChange = onSpamThresholdChange,
+                    spamExcludedCount = spamExcludedCount,
+                    onPickSpamApps = onPickSpamApps,
+                    tuneSampleCount = tuneSampleCount,
+                    onClearLabels = onClearLabels,
                     onRequestTest = onRequestTest,
                     contentPadding = padding,
                 )
