@@ -29,6 +29,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.FilterAlt
+import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.DeleteSweep
 import androidx.compose.material.icons.outlined.FilterList
@@ -36,7 +38,8 @@ import androidx.compose.material.icons.outlined.FilterAlt
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.Close
-import androidx.compose.material.icons.outlined.Science
+import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
@@ -47,8 +50,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LargeTopAppBar
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.ShortNavigationBar
+import androidx.compose.material3.ShortNavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -84,6 +87,7 @@ import moe.notice.filter.ui.logs.LogsScreen
 import moe.notice.filter.ui.rules.AppPickerScreen
 import moe.notice.filter.ui.rules.RuleEditorScreen
 import moe.notice.filter.ui.rules.RulesScreen
+import moe.notice.filter.ui.settings.SettingsScreen
 import moe.notice.filter.ui.theme.NoticeTheme
 
 @Composable
@@ -96,6 +100,7 @@ fun NoticeApp(
         val config by viewModel.config.collectAsStateWithLifecycle()
         val records by viewModel.records.collectAsStateWithLifecycle()
         val apps by viewModel.apps.collectAsStateWithLifecycle()
+        val moduleStatus by viewModel.moduleStatus.collectAsStateWithLifecycle()
         var tab by remember { mutableIntStateOf(0) }
         LaunchedEffect(openLogs) {
             if (openLogs) {
@@ -109,6 +114,9 @@ fun NoticeApp(
         val snackbar = remember { SnackbarHostState() }
         val scope = rememberCoroutineScope()
         val context = LocalContext.current
+        LaunchedEffect(Unit) {
+            viewModel.messages.collect { snackbar.showSnackbar(context.getString(it)) }
+        }
         val permission = rememberLauncherForActivityResult(
             ActivityResultContracts.RequestPermission(),
         ) { granted ->
@@ -174,9 +182,10 @@ fun NoticeApp(
                         isNew = isNew,
                         appLabel = viewModel::labelFor,
                         onSave = { rule ->
-                            viewModel.saveRule(rule)
-                            draft = null
-                            scope.launch { snackbar.showSnackbar(context.getString(R.string.saved)) }
+                            if (viewModel.saveRule(rule)) {
+                                draft = null
+                                scope.launch { snackbar.showSnackbar(context.getString(R.string.saved)) }
+                            }
                         },
                         onPickApps = { next ->
                             draft = next
@@ -189,7 +198,8 @@ fun NoticeApp(
                     HomeScaffold(
                         tab = tab,
                         onTabChange = { tab = it },
-                        moduleActive = viewModel.moduleActive,
+                        moduleActive = moduleStatus.active,
+                        xposedApi = moduleStatus.apiVersion,
                         config = config,
                         records = records,
                         onRequestTest = { requestTest() },
@@ -220,6 +230,7 @@ private fun HomeScaffold(
     tab: Int,
     onTabChange: (Int) -> Unit,
     moduleActive: Boolean,
+    xposedApi: Int,
     config: FilterConfig,
     records: List<NotificationRecord>,
     onRequestTest: () -> Unit,
@@ -405,13 +416,6 @@ private fun HomeScaffold(
                                     contentDescription = stringResource(R.string.search_logs),
                                 )
                             }
-                        } else {
-                            IconButton(onClick = onRequestTest) {
-                                Icon(
-                                    Icons.Outlined.Science,
-                                    contentDescription = stringResource(R.string.test),
-                                )
-                            }
                         }
                     },
                     scrollBehavior = scroll,
@@ -420,21 +424,45 @@ private fun HomeScaffold(
             }
         },
         bottomBar = {
-            NavigationBar(containerColor = MaterialTheme.colorScheme.surfaceContainer) {
-                NavigationBarItem(
+            ShortNavigationBar(containerColor = MaterialTheme.colorScheme.surfaceContainer) {
+                ShortNavigationBarItem(
                     selected = tab == 0,
                     onClick = {
                         searching = false
                         onTabChange(0)
                     },
-                    icon = { Icon(Icons.Outlined.FilterAlt, contentDescription = null) },
+                    icon = {
+                        Icon(
+                            if (tab == 0) Icons.Filled.FilterAlt else Icons.Outlined.FilterAlt,
+                            contentDescription = null,
+                        )
+                    },
                     label = { Text(stringResource(R.string.tab_rules)) },
                 )
-                NavigationBarItem(
+                ShortNavigationBarItem(
                     selected = tab == 1,
                     onClick = { onTabChange(1) },
-                    icon = { Icon(Icons.Outlined.Notifications, contentDescription = null) },
+                    icon = {
+                        Icon(
+                            if (tab == 1) Icons.Filled.Notifications else Icons.Outlined.Notifications,
+                            contentDescription = null,
+                        )
+                    },
                     label = { Text(stringResource(R.string.tab_logs)) },
+                )
+                ShortNavigationBarItem(
+                    selected = tab == 2,
+                    onClick = {
+                        searching = false
+                        onTabChange(2)
+                    },
+                    icon = {
+                        Icon(
+                            if (tab == 2) Icons.Filled.Settings else Icons.Outlined.Settings,
+                            contentDescription = null,
+                        )
+                    },
+                    label = { Text(stringResource(R.string.tab_settings)) },
                 )
             }
         },
@@ -460,25 +488,30 @@ private fun HomeScaffold(
             transitionSpec = { slideFade(forward = targetState > initialState) },
             label = "tab",
         ) { currentTab ->
-            if (currentTab == 0) {
-                RulesScreen(
+            when (currentTab) {
+                0 -> RulesScreen(
                     config = config,
                     moduleActive = moduleActive,
+                    xposedApi = xposedApi,
                     appLabel = appLabel,
-                    onEnabledChange = onEnabledChange,
-                    onLogEnabledChange = onLogEnabledChange,
                     onToggleRule = onToggleRule,
                     onEditRule = onEditRule,
                     onDeleteRule = onDeleteRule,
                     contentPadding = padding,
                 )
-            } else {
-                LogsScreen(
+                1 -> LogsScreen(
                     records = records,
                     query = logQuery,
                     filter = logFilter,
                     appPackage = if (searching) logAppPackage else null,
                     appLabel = appLabel,
+                    contentPadding = padding,
+                )
+                else -> SettingsScreen(
+                    config = config,
+                    onEnabledChange = onEnabledChange,
+                    onLogEnabledChange = onLogEnabledChange,
+                    onRequestTest = onRequestTest,
                     contentPadding = padding,
                 )
             }

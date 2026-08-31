@@ -4,9 +4,12 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -34,23 +37,43 @@ class NoticeViewModel(application: Application) : AndroidViewModel(application) 
     private val _apps = MutableStateFlow<List<InstalledApp>>(emptyList())
     val apps: StateFlow<List<InstalledApp>> = _apps.asStateFlow()
 
-    val moduleActive: Boolean = ModuleStatus.isActive()
+    val moduleStatus: StateFlow<ModuleStatus.Info> = ModuleStatus.state
+
+    private val _messages = MutableSharedFlow<Int>(extraBufferCapacity = 4)
+    /** String resource ids of one-off messages for the UI to show (e.g. save refused). */
+    val messages: SharedFlow<Int> = _messages.asSharedFlow()
 
     init {
         viewModelScope.launch(Dispatchers.IO) {
             _apps.value = catalog.load()
         }
+        viewModelScope.launch(Dispatchers.IO) {
+            ModuleStatus.state.collect { rules.attachRemote(ModuleStatus.remotePrefs()) }
+        }
     }
 
-    fun setEnabled(enabled: Boolean) = rules.setEnabled(enabled)
+    fun setEnabled(enabled: Boolean) {
+        report(rules.setEnabled(enabled))
+    }
 
-    fun setLogEnabled(enabled: Boolean) = rules.setLogEnabled(enabled)
+    fun setLogEnabled(enabled: Boolean) {
+        report(rules.setLogEnabled(enabled))
+    }
 
-    fun saveRule(rule: BlockRule) = rules.upsert(rule)
+    fun saveRule(rule: BlockRule): Boolean = report(rules.upsert(rule))
 
-    fun deleteRule(id: String) = rules.delete(id)
+    fun deleteRule(id: String) {
+        report(rules.delete(id))
+    }
 
-    fun toggleRule(id: String, enabled: Boolean) = rules.toggleRule(id, enabled)
+    fun toggleRule(id: String, enabled: Boolean) {
+        report(rules.toggleRule(id, enabled))
+    }
+
+    private fun report(saved: Boolean): Boolean {
+        if (!saved) _messages.tryEmit(R.string.save_need_active)
+        return saved
+    }
 
     fun clearLogs() = logs.clear()
 

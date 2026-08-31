@@ -4,6 +4,18 @@
     <string name="xposed_description">在 system_server 按规则拦截通知（不弹、不响、不震）</string>
     <string name="status_active_title">已激活</string>
     <string name="status_inactive_title">未激活</string>
+    <string name="status_version">%1$s (%2$d)</string>
+    <string name="status_api">API %1$d</string>
+    <string name="section_general">通用</string>
+    <string name="section_debug">调试</string>
+    <string name="section_about">关于</string>
+    <string name="enable_filter_hint">关闭后所有规则暂停生效</string>
+    <string name="enable_log_hint">在「记录」中查看拦截与放行的通知</string>
+    <string name="test_hint">用第一条启用规则的关键词发一条通知，被拦截则不会出现</string>
+    <string name="about_version">版本</string>
+    <string name="about_scope">作用域</string>
+    <string name="tab_settings">设置</string>
+    <string name="section_rules">规则</string>
     <string name="enable_filter">启用关键词拦截</string>
     <string name="enable_log">记录通知</string>
     <string name="tab_rules">规则</string>
@@ -42,7 +54,7 @@
     <string name="apps_all">全部应用</string>
     <string name="apps_selected">已选 %1$d 个应用：%2$s</string>
     <string name="apps_excluded">排除 %1$d 个应用：%2$s</string>
-    <string name="apps_selected_count">已选 %1$d 个应用（留空表示全部）</string>
+    <string name="apps_selected_short">已选 %1$d 个</string>
     <string name="choose_apps">选择应用</string>
     <string name="search_apps">搜索应用名称或包名</string>
     <string name="search_logs">搜索应用、标题、正文或规则</string>
@@ -68,6 +80,7 @@
     <string name="keywords_label">拦截关键词</string>
     <string name="save">保存</string>
     <string name="test">发送测试通知</string>
+    <string name="save_need_active">模块未激活，无法保存</string>
     <string name="saved">已保存。无需重启，数秒内生效。</string>
     <string name="test_need_keyword">先保存一条带关键词的规则</string>
     <string name="test_need_permission">请允许通知权限后再测</string>

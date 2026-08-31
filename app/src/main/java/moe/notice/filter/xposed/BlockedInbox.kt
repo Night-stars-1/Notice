@@ -13,9 +13,6 @@ import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.widget.RemoteViews
-import de.robv.android.xposed.XposedBridge
-import de.robv.android.xposed.XposedHelpers
-import de.robv.android.xposed.XC_MethodHook
 import moe.notice.filter.BuildConfig
 import moe.notice.filter.InboxChannel
 import moe.notice.filter.MainActivity
@@ -43,7 +40,7 @@ internal class BlockedInbox {
                 Context.CONTEXT_IGNORE_SECURITY,
             )
         } catch (t: Throwable) {
-            XposedBridge.log("Notice: package context failed: $t")
+            Xp.log("package context failed", t)
         }
         val filter = IntentFilter(ACTION_UNDO)
         val receiver = object : BroadcastReceiver() {
@@ -60,18 +57,18 @@ internal class BlockedInbox {
                 ctx.registerReceiver(receiver, filter)
             }
         } catch (t: Throwable) {
-            XposedBridge.log("Notice: register undo receiver failed: $t")
+            Xp.log("register undo receiver failed", t)
         }
     }
 
-    fun onBlocked(param: XC_MethodHook.MethodHookParam) {
-        val notification = param.args.firstOrNull { it is Notification } as? Notification ?: return
-        val parsed = parseArgs(param.args) ?: return
+    fun onBlocked(method: Method, service: Any?, hookArgs: Array<Any?>) {
+        val notification = hookArgs.firstOrNull { it is Notification } as? Notification ?: return
+        val parsed = parseArgs(hookArgs) ?: return
         if (notification.extras?.getBoolean(EXTRA_MARKER) == true) return
         if (notification.channelId == InboxChannel.ID) return
         val extracted = NotificationText.extract(notification)
         val key = "${parsed.pkg}|${parsed.tag}|${parsed.id}"
-        val args = param.args.copyOf()
+        val args = hookArgs.copyOf()
         for (i in args.indices) {
             val value = args[i]
             if (value is Notification) {
@@ -87,8 +84,8 @@ internal class BlockedInbox {
             pkg = parsed.pkg,
             title = extracted.title,
             text = extracted.body,
-            method = param.method as? Method,
-            nms = param.thisObject,
+            method = method,
+            nms = service,
             args = args,
         )
         synchronized(lock) {
@@ -113,9 +110,9 @@ internal class BlockedInbox {
         val target = item.nms ?: nms ?: return
         val task = Runnable {
             try {
-                XposedBridge.invokeOriginalMethod(method, target, item.args)
+                Xp.invokeOrigin(method, target, item.args)
             } catch (t: Throwable) {
-                XposedBridge.log("Notice: restore failed: $t")
+                Xp.log("restore failed", t)
             }
         }
         val handler = nmsHandler(target)
@@ -136,7 +133,7 @@ internal class BlockedInbox {
             val notification = buildNotification(appCtx, ctx, snapshot)
             postSummary(nm, notification)
         } catch (t: Throwable) {
-            XposedBridge.log("Notice: publish inbox failed: $t")
+            Xp.log("publish inbox failed", t)
         }
     }
 
@@ -191,7 +188,7 @@ internal class BlockedInbox {
         val service = nms
         if (service != null) {
             try {
-                XposedHelpers.callMethod(
+                Xp.callMethod(
                     service,
                     "enqueueNotificationInternal",
                     BuildConfig.APPLICATION_ID,
@@ -205,7 +202,7 @@ internal class BlockedInbox {
                 )
                 return
             } catch (t: Throwable) {
-                XposedBridge.log("Notice: enqueue summary fallback: $t")
+                Xp.log("enqueue summary fallback", t)
             }
         }
         nm.notify(TAG, ID, notification)
@@ -217,7 +214,7 @@ internal class BlockedInbox {
                 nm.cancelAsPackage(BuildConfig.APPLICATION_ID, TAG, ID)
                 return
             } catch (t: Throwable) {
-                XposedBridge.log("Notice: cancelAsPackage failed: $t")
+                Xp.log("cancelAsPackage failed", t)
             }
         }
         nm.cancel(TAG, ID)
@@ -238,7 +235,7 @@ internal class BlockedInbox {
         val service = nms
         if (service != null) {
             try {
-                XposedHelpers.callMethod(
+                Xp.callMethod(
                     service,
                     "createNotificationChannel",
                     BuildConfig.APPLICATION_ID,
@@ -256,7 +253,7 @@ internal class BlockedInbox {
             val nm = appCtx.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             nm.createNotificationChannel(channel)
         } catch (t: Throwable) {
-            XposedBridge.log("Notice: create channel failed: $t")
+            Xp.log("create channel failed", t)
         }
     }
 
@@ -301,7 +298,7 @@ internal class BlockedInbox {
     private fun nmsHandler(service: Any): Handler? {
         for (name in arrayOf("mWorkerHandler", "mHandler", "mMainHandler")) {
             try {
-                val value = XposedHelpers.getObjectField(service, name)
+                val value = Xp.getField(service, name)
                 if (value is Handler) return value
             } catch (_: Throwable) {
             }

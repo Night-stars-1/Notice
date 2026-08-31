@@ -9,60 +9,85 @@ import moe.notice.filter.FilterPrefs
 import moe.notice.filter.domain.BlockRule
 import moe.notice.filter.domain.FilterConfig
 
+/**
+ * Rules live in the Xposed framework's remote preferences (the only store system_server can
+ * read). A private local copy is kept purely so the UI can still display the last known rules
+ * while the module is inactive; nothing is written unless the framework service is bound.
+ */
 class RuleRepository(context: Context) {
-    private val prefs: SharedPreferences = openPrefs(context.applicationContext)
+    private val cache: SharedPreferences =
+        context.applicationContext.getSharedPreferences(FilterPrefs.NAME, Context.MODE_PRIVATE)
 
-    private val _config = MutableStateFlow(FilterConfigCodec.fromPrefs(prefs))
+    @Volatile
+    private var remote: SharedPreferences? = null
+
+    private val _config = MutableStateFlow(FilterConfigCodec.fromPrefs(cache))
     val config: StateFlow<FilterConfig> = _config.asStateFlow()
 
-    fun save(config: FilterConfig) {
-        prefs.edit()
-            .putString(FilterPrefs.KEY_CONFIG, FilterConfigCodec.encode(config))
-            .remove(FilterPrefs.KEY_KEYWORDS)
-            .remove(FilterPrefs.KEY_REGEX)
-            .putBoolean(FilterPrefs.KEY_ENABLED, config.enabled)
-            .commit()
-        _config.value = config
+    /** Called whenever the Xposed service comes (prefs) or goes (null). */
+    fun attachRemote(prefs: SharedPreferences?) {
+        remote = prefs
+        if (prefs == null) return
+        if (!prefs.contains(FilterPrefs.KEY_CONFIG)) {
+            // First run on the new API: carry the pre-service local rules over once.
+            val local = _config.value
+            if (local.rules.isNotEmpty() || local.enabled) write(prefs, local)
+            return
+        }
+        val current = FilterConfigCodec.fromPrefs(prefs)
+        cacheLocally(current)
+        _config.value = current
     }
 
-    fun setEnabled(enabled: Boolean) {
-        save(_config.value.copy(enabled = enabled))
+    /** Returns false (and writes nothing) when the module is not active. */
+    fun save(config: FilterConfig): Boolean {
+        val prefs = remote ?: return false
+        write(prefs, config)
+        return true
     }
 
-    fun setLogEnabled(logEnabled: Boolean) {
-        save(_config.value.copy(logEnabled = logEnabled))
-    }
+    fun setEnabled(enabled: Boolean): Boolean = save(_config.value.copy(enabled = enabled))
 
-    fun upsert(rule: BlockRule) {
+    fun setLogEnabled(logEnabled: Boolean): Boolean = save(_config.value.copy(logEnabled = logEnabled))
+
+    fun upsert(rule: BlockRule): Boolean {
         val current = _config.value
         val rules = current.rules.toMutableList()
         val stored = rule.withCompiledRegex()
         val index = rules.indexOfFirst { it.id == stored.id }
         if (index >= 0) rules[index] = stored else rules += stored
-        save(current.copy(rules = rules))
+        return save(current.copy(rules = rules))
     }
 
-    fun delete(ruleId: String) {
+    fun delete(ruleId: String): Boolean {
         val current = _config.value
-        save(current.copy(rules = current.rules.filterNot { it.id == ruleId }))
+        return save(current.copy(rules = current.rules.filterNot { it.id == ruleId }))
     }
 
-    fun toggleRule(ruleId: String, enabled: Boolean) {
+    fun toggleRule(ruleId: String, enabled: Boolean): Boolean {
         val current = _config.value
-        save(
+        return save(
             current.copy(
                 rules = current.rules.map { if (it.id == ruleId) it.copy(enabled = enabled) else it },
             ),
         )
     }
 
-    private companion object {
-        fun openPrefs(context: Context): SharedPreferences {
-            return try {
-                context.getSharedPreferences(FilterPrefs.NAME, Context.MODE_WORLD_READABLE)
-            } catch (_: SecurityException) {
-                context.getSharedPreferences(FilterPrefs.NAME, Context.MODE_PRIVATE)
-            }
-        }
+    private fun write(prefs: SharedPreferences, config: FilterConfig) {
+        prefs.edit()
+            .putString(FilterPrefs.KEY_CONFIG, FilterConfigCodec.encode(config))
+            .putBoolean(FilterPrefs.KEY_ENABLED, config.enabled)
+            .commit()
+        cacheLocally(config)
+        _config.value = config
+    }
+
+    private fun cacheLocally(config: FilterConfig) {
+        cache.edit()
+            .putString(FilterPrefs.KEY_CONFIG, FilterConfigCodec.encode(config))
+            .remove(FilterPrefs.KEY_KEYWORDS)
+            .remove(FilterPrefs.KEY_REGEX)
+            .putBoolean(FilterPrefs.KEY_ENABLED, config.enabled)
+            .apply()
     }
 }

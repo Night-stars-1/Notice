@@ -1,7 +1,6 @@
 package moe.notice.filter.ui.rules
 
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -12,16 +11,15 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowDropDown
-import androidx.compose.material.icons.outlined.Apps
 import androidx.compose.material.icons.outlined.Save
+import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.WarningAmber
-import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FabPosition
@@ -38,8 +36,8 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -76,7 +74,6 @@ fun RuleEditorScreen(
     var excludeKeywords by remember { mutableStateOf(initial.excludeKeywords) }
     var modeMenuExpanded by remember { mutableStateOf(false) }
     var appListMode by remember { mutableStateOf(initial.appListMode) }
-    var appModeMenu by remember { mutableStateOf(false) }
     val packages = initial.packages
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -118,7 +115,7 @@ fun RuleEditorScreen(
             FloatingActionButton(
                 onClick = { trySave() },
                 modifier = Modifier.padding(bottom = 32.dp),
-                shape = RoundedCornerShape(16.dp),
+                shape = MaterialTheme.shapes.large,
             ) {
                 Icon(Icons.Outlined.Save, contentDescription = stringResource(R.string.save))
             }
@@ -147,7 +144,7 @@ fun RuleEditorScreen(
                 .padding(padding)
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 16.dp, vertical = 4.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             OutlinedTextField(
                 value = name,
@@ -157,16 +154,38 @@ fun RuleEditorScreen(
                 singleLine = true,
                 shape = MaterialTheme.shapes.medium,
             )
-            Row(
+            Surface(
+                onClick = { enabled = !enabled },
                 modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
+                shape = MaterialTheme.shapes.large,
+                color = MaterialTheme.colorScheme.surfaceContainerLow,
             ) {
-                Text(
-                    text = stringResource(R.string.rule_enabled),
-                    modifier = Modifier.weight(1f),
-                    style = MaterialTheme.typography.titleMedium,
-                )
-                Switch(checked = enabled, onCheckedChange = { enabled = it })
+                Row(
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                ) {
+                    Text(
+                        text = stringResource(R.string.rule_enabled),
+                        modifier = Modifier.weight(1f),
+                        style = MaterialTheme.typography.titleMedium,
+                    )
+                    Switch(
+                        checked = enabled,
+                        onCheckedChange = { enabled = it },
+                        thumbContent = if (enabled) {
+                            {
+                                Icon(
+                                    imageVector = Icons.Outlined.Check,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(SwitchDefaults.IconSize),
+                                )
+                            }
+                        } else {
+                            null
+                        },
+                    )
+                }
             }
             ExposedDropdownMenuBox(
                 expanded = modeMenuExpanded,
@@ -245,98 +264,82 @@ fun RuleEditorScreen(
             }
             if (mode == MatchMode.ALL_CONTENT && packages.isEmpty()) {
                 Surface(
-                    shape = MaterialTheme.shapes.small,
-                    color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.55f),
+                    shape = MaterialTheme.shapes.large,
+                    color = MaterialTheme.colorScheme.errorContainer,
+                    contentColor = MaterialTheme.colorScheme.onErrorContainer,
                 ) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 12.dp, vertical = 10.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
                         Icon(
                             imageVector = Icons.Outlined.WarningAmber,
                             contentDescription = null,
-                            modifier = Modifier.size(18.dp),
-                            tint = MaterialTheme.colorScheme.error,
                         )
                         Text(
                             text = stringResource(R.string.warn_all_content),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onErrorContainer,
+                            style = MaterialTheme.typography.bodyMedium,
                         )
                     }
                 }
             }
             Surface(
-                shape = MaterialTheme.shapes.small,
+                shape = MaterialTheme.shapes.large,
                 color = MaterialTheme.colorScheme.surfaceContainerLow,
             ) {
-                Row(
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(start = 16.dp, end = 4.dp, top = 6.dp, bottom = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        .padding(start = 20.dp, end = 12.dp, top = 12.dp, bottom = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
-                    Icon(
-                        imageVector = Icons.Outlined.Apps,
-                        contentDescription = null,
-                        modifier = Modifier.size(20.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    Column(modifier = Modifier.weight(1f)) {
-                        Box {
-                            TextButton(
-                                onClick = { appModeMenu = true },
-                                contentPadding = PaddingValues(0.dp),
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    ) {
+                        Row(
+                            modifier = Modifier.weight(1f),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            Text(
+                                text = stringResource(R.string.rule_apps),
+                                style = MaterialTheme.typography.titleMedium,
+                            )
+                            Surface(
+                                shape = CircleShape,
+                                color = MaterialTheme.colorScheme.secondaryContainer,
+                                contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
                             ) {
                                 Text(
                                     text = stringResource(appListMode.labelRes()),
-                                    style = MaterialTheme.typography.titleSmall,
-                                    color = MaterialTheme.colorScheme.onSurface,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                                    style = MaterialTheme.typography.labelMedium,
                                 )
-                                Icon(
-                                    imageVector = Icons.Filled.ArrowDropDown,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(18.dp),
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            }
-                            DropdownMenu(
-                                expanded = appModeMenu,
-                                onDismissRequest = { appModeMenu = false },
-                            ) {
-                                AppListMode.entries.forEach { item ->
-                                    DropdownMenuItem(
-                                        text = { Text(stringResource(item.labelRes())) },
-                                        onClick = {
-                                            appListMode = item
-                                            appModeMenu = false
-                                        },
-                                    )
-                                }
                             }
                         }
-                        Text(
-                            text = if (packages.isEmpty()) {
-                                stringResource(R.string.apps_all)
+                        FilledTonalButton(onClick = { onPickApps(persist()) }) {
+                            Text(stringResource(R.string.choose_apps))
+                        }
+                    }
+                    Text(
+                        text = buildString {
+                            if (packages.isEmpty()) {
+                                append(stringResource(R.string.apps_all))
                             } else {
-                                val names = packages.take(4).joinToString("、", transform = appLabel) +
-                                    if (packages.size > 4) " 等 ${packages.size} 个" else ""
-                                if (appListMode == AppListMode.BLACKLIST) {
-                                    "排除 $names"
-                                } else {
-                                    names
-                                }
-                            },
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                    TextButton(onClick = { onPickApps(persist()) }) {
-                        Text(stringResource(R.string.choose_apps))
-                    }
+                                if (appListMode == AppListMode.BLACKLIST) append("排除 ")
+                                append(packages.take(4).joinToString("、", transform = appLabel))
+                                if (packages.size > 4) append(" 等 ${packages.size} 个")
+                            }
+                        },
+                        modifier = Modifier.padding(end = 8.dp),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
             }
             Spacer(Modifier.height(72.dp))

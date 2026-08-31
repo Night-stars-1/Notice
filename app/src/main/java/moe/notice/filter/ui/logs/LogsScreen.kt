@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.NotificationsOff
@@ -161,10 +162,15 @@ private fun LogCard(
             append(item.ruleName)
         }
     }
-    val statusColor = if (item.blocked) {
-        MaterialTheme.colorScheme.error
+    val badgeContainer = if (item.blocked) {
+        MaterialTheme.colorScheme.errorContainer
     } else {
-        MaterialTheme.colorScheme.onSurfaceVariant
+        MaterialTheme.colorScheme.secondaryContainer
+    }
+    val badgeContent = if (item.blocked) {
+        MaterialTheme.colorScheme.onErrorContainer
+    } else {
+        MaterialTheme.colorScheme.onSecondaryContainer
     }
     Surface(
         onClick = onClick,
@@ -175,18 +181,18 @@ private fun LogCard(
         color = MaterialTheme.colorScheme.surfaceContainerLow,
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+            modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            AppIcon(item.packageName, Modifier.size(32.dp))
+            AppIcon(item.packageName, Modifier.size(40.dp))
             Column(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(2.dp),
             ) {
                 Text(
                     text = title,
-                    style = MaterialTheme.typography.titleSmall,
+                    style = MaterialTheme.typography.titleMedium,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -207,13 +213,19 @@ private fun LogCard(
                     )
                 }
             }
-            Text(
-                text = stringResource(
-                    if (item.blocked) R.string.badge_blocked else R.string.badge_allowed,
-                ),
-                style = MaterialTheme.typography.labelMedium,
-                color = statusColor,
-            )
+            Surface(
+                shape = CircleShape,
+                color = badgeContainer,
+                contentColor = badgeContent,
+            ) {
+                Text(
+                    text = stringResource(
+                        if (item.blocked) R.string.badge_blocked else R.string.badge_allowed,
+                    ),
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                    style = MaterialTheme.typography.labelMediumEmphasized,
+                )
+            }
         }
     }
 }
@@ -228,50 +240,101 @@ private fun NotificationDetailSheet(
         modifier = Modifier
             .fillMaxWidth()
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 24.dp)
+            .padding(horizontal = 16.dp)
             .navigationBarsPadding()
-            .padding(bottom = 28.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
+            .padding(bottom = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        Text(stringResource(R.string.log_detail_title), style = MaterialTheme.typography.titleLarge)
-        DetailRow(stringResource(R.string.log_detail_app), appLabel)
-        DetailRow(stringResource(R.string.log_detail_package), record.packageName)
-        DetailRow(
-            stringResource(R.string.log_detail_status),
-            stringResource(if (record.blocked) R.string.badge_blocked else R.string.badge_allowed),
-        )
-        if (record.blocked && !record.ruleName.isNullOrBlank()) {
-            DetailRow(stringResource(R.string.log_detail_rule), record.ruleName.orEmpty())
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            AppIcon(record.packageName, Modifier.size(48.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = record.title.ifBlank { appLabel },
+                    style = MaterialTheme.typography.titleLargeEmphasized,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = appLabel,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Surface(
+                shape = CircleShape,
+                color = if (record.blocked) {
+                    MaterialTheme.colorScheme.errorContainer
+                } else {
+                    MaterialTheme.colorScheme.secondaryContainer
+                },
+                contentColor = if (record.blocked) {
+                    MaterialTheme.colorScheme.onErrorContainer
+                } else {
+                    MaterialTheme.colorScheme.onSecondaryContainer
+                },
+            ) {
+                Text(
+                    text = stringResource(
+                        if (record.blocked) R.string.badge_blocked else R.string.badge_allowed,
+                    ),
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                    style = MaterialTheme.typography.labelLargeEmphasized,
+                )
+            }
         }
-        DetailRow(
-            stringResource(R.string.log_detail_time),
-            DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.MEDIUM).format(Date(record.timestamp)),
-        )
-        DetailRow(stringResource(R.string.log_detail_title_field), record.title)
-        DetailRow(stringResource(R.string.log_detail_text), record.text)
-        DetailRow(stringResource(R.string.log_detail_big_title), details.bigTitle)
-        DetailRow(stringResource(R.string.log_detail_big_text), details.bigText)
-        DetailRow(stringResource(R.string.log_detail_sub_text), details.subText)
-        DetailRow(stringResource(R.string.log_detail_info_text), details.infoText)
-        DetailRow(stringResource(R.string.log_detail_summary), details.summaryText)
-        DetailRow(stringResource(R.string.log_detail_ticker), details.ticker)
-        DetailRow(stringResource(R.string.log_detail_channel), details.channelId)
-        DetailRow(stringResource(R.string.log_detail_category), details.category)
-        DetailRow(stringResource(R.string.log_detail_group), details.groupKey)
-        DetailRow(stringResource(R.string.log_detail_template), details.template)
-        if (details.notificationId != 0) {
-            DetailRow(stringResource(R.string.log_detail_id), details.notificationId.toString())
+        Surface(
+            shape = MaterialTheme.shapes.large,
+            color = MaterialTheme.colorScheme.surfaceContainerLow,
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp, vertical = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                DetailRow(stringResource(R.string.log_detail_app), appLabel)
+                DetailRow(stringResource(R.string.log_detail_package), record.packageName)
+                DetailRow(
+                    stringResource(R.string.log_detail_status),
+                    stringResource(if (record.blocked) R.string.badge_blocked else R.string.badge_allowed),
+                )
+                if (record.blocked && !record.ruleName.isNullOrBlank()) {
+                    DetailRow(stringResource(R.string.log_detail_rule), record.ruleName.orEmpty())
+                }
+                DetailRow(
+                    stringResource(R.string.log_detail_time),
+                    DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.MEDIUM).format(Date(record.timestamp)),
+                )
+                DetailRow(stringResource(R.string.log_detail_title_field), record.title)
+                DetailRow(stringResource(R.string.log_detail_text), record.text)
+                DetailRow(stringResource(R.string.log_detail_big_title), details.bigTitle)
+                DetailRow(stringResource(R.string.log_detail_big_text), details.bigText)
+                DetailRow(stringResource(R.string.log_detail_sub_text), details.subText)
+                DetailRow(stringResource(R.string.log_detail_info_text), details.infoText)
+                DetailRow(stringResource(R.string.log_detail_summary), details.summaryText)
+                DetailRow(stringResource(R.string.log_detail_ticker), details.ticker)
+                DetailRow(stringResource(R.string.log_detail_channel), details.channelId)
+                DetailRow(stringResource(R.string.log_detail_category), details.category)
+                DetailRow(stringResource(R.string.log_detail_group), details.groupKey)
+                DetailRow(stringResource(R.string.log_detail_template), details.template)
+                if (details.notificationId != 0) {
+                    DetailRow(stringResource(R.string.log_detail_id), details.notificationId.toString())
+                }
+                DetailRow(stringResource(R.string.log_detail_tag), details.tag)
+                if (details.number != 0) {
+                    DetailRow(stringResource(R.string.log_detail_number), details.number.toString())
+                }
+                DetailRow(stringResource(R.string.log_detail_progress), details.progress)
+                DetailRow(stringResource(R.string.log_detail_visibility), visibilityLabel(details.visibility))
+                DetailRow(stringResource(R.string.log_detail_flags), flagLabels(details.flags).joinToString("、"))
+                DetailRow(stringResource(R.string.log_detail_actions), details.actions.joinToString("、"))
+                DetailRow(stringResource(R.string.log_detail_lines), details.textLines.joinToString("\n"))
+                DetailRow(stringResource(R.string.log_detail_messages), details.messages.joinToString("\n"))
+            }
         }
-        DetailRow(stringResource(R.string.log_detail_tag), details.tag)
-        if (details.number != 0) {
-            DetailRow(stringResource(R.string.log_detail_number), details.number.toString())
-        }
-        DetailRow(stringResource(R.string.log_detail_progress), details.progress)
-        DetailRow(stringResource(R.string.log_detail_visibility), visibilityLabel(details.visibility))
-        DetailRow(stringResource(R.string.log_detail_flags), flagLabels(details.flags).joinToString("、"))
-        DetailRow(stringResource(R.string.log_detail_actions), details.actions.joinToString("、"))
-        DetailRow(stringResource(R.string.log_detail_lines), details.textLines.joinToString("\n"))
-        DetailRow(stringResource(R.string.log_detail_messages), details.messages.joinToString("\n"))
     }
 }
 

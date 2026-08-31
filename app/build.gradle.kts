@@ -38,6 +38,12 @@ android {
         compose = true
         buildConfig = true
     }
+
+    packaging {
+        resources {
+            merges += "META-INF/xposed/*"
+        }
+    }
 }
 
 kotlin {
@@ -62,8 +68,9 @@ dependencies {
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.foundation:foundation")
-    implementation("androidx.compose.material3:material3")
+    implementation("androidx.compose.material3:material3:1.5.0-alpha25")
     implementation("androidx.compose.material:material-icons-extended")
     debugImplementation("androidx.compose.ui:ui-tooling")
-    compileOnly("de.robv.android.xposed:api:82")
+    compileOnly("io.github.libxposed:api:102.0.0")
+    implementation("io.github.libxposed:service:102.0.0")
 }

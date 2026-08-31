@@ -3,7 +3,8 @@ package moe.notice.filter.ui.theme
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MaterialExpressiveTheme
+import androidx.compose.material3.MotionScheme
 import androidx.compose.material3.Shapes
 import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
@@ -70,12 +71,13 @@ private val DarkColors = darkColorScheme(
     surfaceContainerHighest = Color(0xFF333537),
 )
 
+// M3 corner scale: extra small 4 / small 8 / medium 12 / large 16 / extra large 28.
 private val NoticeShapes = Shapes(
-    extraSmall = RoundedCornerShape(8.dp),
-    small = RoundedCornerShape(12.dp),
-    medium = RoundedCornerShape(16.dp),
-    large = RoundedCornerShape(28.dp),
-    extraLarge = RoundedCornerShape(36.dp),
+    extraSmall = RoundedCornerShape(4.dp),
+    small = RoundedCornerShape(8.dp),
+    medium = RoundedCornerShape(12.dp),
+    large = RoundedCornerShape(16.dp),
+    extraLarge = RoundedCornerShape(28.dp),
 )
 
 @Composable
@@ -92,8 +94,9 @@ fun NoticeTheme(
         darkTheme -> DarkColors
         else -> LightColors
     }
-    MaterialTheme(
+    MaterialExpressiveTheme(
         colorScheme = colorScheme,
+        motionScheme = MotionScheme.expressive(),
         typography = Typography(),
         shapes = NoticeShapes,
         content = content,
@@ -104,7 +107,7 @@ fun groupedListShape(
     index: Int,
     count: Int,
     radius: Dp = 16.dp,
-    inner: Dp = 8.dp,
+    inner: Dp = 4.dp,
 ): RoundedCornerShape {
     if (count <= 1) return RoundedCornerShape(radius)
     return when (index) {

@@ -5,12 +5,9 @@ import android.app.Notification
 import android.content.Context
 import android.content.SharedPreferences
 import android.os.Build
-import java.util.concurrent.Executors
-import de.robv.android.xposed.XSharedPreferences
-import de.robv.android.xposed.XposedBridge
-import moe.notice.filter.BuildConfig
-import moe.notice.filter.InboxChannel
+import io.github.libxposed.api.XposedInterface
 import moe.notice.filter.FilterPrefs
+import moe.notice.filter.InboxChannel
 import moe.notice.filter.data.FilterConfigCodec
 import moe.notice.filter.data.NotificationDetailsCodec
 import moe.notice.filter.domain.BlockRule
@@ -20,13 +17,30 @@ import moe.notice.filter.domain.RuleMatcher
 import moe.notice.filter.provider.NotificationLogProvider
 
 internal class KeywordFilter {
-    private val lock = Any()
-    private var prefs: XSharedPreferences? = null
     private var lastConfigSummary = ""
     @Volatile private var config = FilterConfig()
+    private val sink = LogSink()
+    // Held strongly: SharedPreferences implementations keep listeners weakly.
+    private var listener: SharedPreferences.OnSharedPreferenceChangeListener? = null
+
+    /** Reads the rules from the framework's remote preferences and follows updates pushed by the daemon. */
+    fun attach(api: XposedInterface) {
+        try {
+            val prefs = api.getRemotePreferences(FilterPrefs.NAME)
+            config = FilterConfigCodec.fromPrefs(prefs)
+            logConfig("remote")
+            val l = SharedPreferences.OnSharedPreferenceChangeListener { p, _ ->
+                config = FilterConfigCodec.fromPrefs(p)
+                logConfig("remote update")
+            }
+            listener = l
+            prefs.registerOnSharedPreferenceChangeListener(l)
+        } catch (t: Throwable) {
+            Xp.log("remote preferences unavailable, filter stays empty", t)
+        }
+    }
 
     fun shouldBlock(args: Array<Any?>, context: Context?): Boolean {
-        ensurePrefs()
 
         var pkg: String? = null
         var notification: Notification? = null
@@ -50,7 +64,7 @@ internal class KeywordFilter {
         } else {
             RuleMatcher.firstMatch(config.rules, resolved, extracted.combined)
         }
-        XposedBridge.log(formatJudgeLog(resolved, extracted.combined, hit))
+        Xp.log(formatJudgeLog(resolved, extracted.combined, hit))
         if (config.logEnabled) {
             try {
                 if (hit != null || extracted.combined.isNotEmpty()) {
@@ -59,7 +73,7 @@ internal class KeywordFilter {
                     log(context, resolved, extracted, hit, details)
                 }
             } catch (t: Throwable) {
-                XposedBridge.log("Notice: log failed: $t")
+                Xp.log("log failed", t)
             }
         }
         return hit != null
@@ -79,7 +93,7 @@ internal class KeywordFilter {
         }.ifBlank { "(none)" }
         val snippet = clipText(text)
         val result = if (hit == null) "allow" else "block:" + hit.name.ifBlank { hit.id }
-        return "Notice: judge enabled=${config.enabled} rules={$rules} pkg=$pkg result=$result text=$snippet"
+        return "judge enabled=${config.enabled} rules={$rules} pkg=$pkg result=$result text=$snippet"
     }
 
     private fun clipText(text: String): String {
@@ -106,45 +120,9 @@ internal class KeywordFilter {
             put(NotificationLogProvider.COL_DETAILS, NotificationDetailsCodec.toJson(details))
         }
         try {
-            LOG_EXECUTOR.execute {
-                try {
-                    ctx.contentResolver.insert(NotificationLogProvider.CONTENT_URI, values)
-                } catch (t: Throwable) {
-                    XposedBridge.log("Notice: log insert failed: $t")
-                }
-            }
+            sink.submit(ctx, values)
         } catch (t: Throwable) {
-            XposedBridge.log("Notice: log schedule failed: $t")
-        }
-    }
-
-    private fun ensurePrefs() {
-        synchronized(lock) {
-            if (prefs != null) return
-            try {
-                val created = XSharedPreferences(BuildConfig.APPLICATION_ID, FilterPrefs.NAME)
-                created.reload()
-                XposedBridge.log(
-                    "Notice: prefs file=" + created.file +
-                        " canRead=" + created.file.canRead() +
-                        " keys=" + created.all.keys,
-                )
-                created.registerOnSharedPreferenceChangeListener { shared, _ ->
-                    try {
-                        val xp = shared as? XSharedPreferences ?: created
-                        xp.reload()
-                        config = FilterConfigCodec.fromPrefs(xp)
-                        logConfig("prefs changed file=" + xp.file)
-                    } catch (t: Throwable) {
-                        XposedBridge.log("Notice: prefs listener failed: $t")
-                    }
-                }
-                prefs = created
-                config = FilterConfigCodec.fromPrefs(created)
-                logConfig("from prefs file=" + created.file)
-            } catch (t: Throwable) {
-                XposedBridge.log("Notice: load prefs failed: $t")
-            }
+            Xp.log("log schedule failed", t)
         }
     }
 
@@ -152,7 +130,7 @@ internal class KeywordFilter {
         val summary = "enabled=${config.enabled} log=${config.logEnabled} rules=${config.rules.size} $source"
         if (summary == lastConfigSummary) return
         lastConfigSummary = summary
-        XposedBridge.log("Notice: config $summary")
+        Xp.log("config $summary")
     }
 
     private fun isCritical(notification: Notification): Boolean {
@@ -179,10 +157,6 @@ internal class KeywordFilter {
     }
 
     private companion object {
-        val LOG_EXECUTOR = Executors.newSingleThreadExecutor { runnable ->
-            Thread(runnable, "notice-log").apply { isDaemon = true }
-        }
-
         val PROTECTED_PACKAGES = setOf(
             "android",
             "com.android.systemui",
