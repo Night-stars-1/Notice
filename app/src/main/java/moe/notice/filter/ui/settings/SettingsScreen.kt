@@ -38,12 +38,14 @@ import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.outlined.OpenInNew
 import androidx.compose.material.icons.outlined.AppBlocking
 import androidx.compose.material.icons.outlined.AutoAwesome
+import androidx.compose.material.icons.outlined.BugReport
 import androidx.compose.material.icons.outlined.DeleteSweep
 import androidx.compose.material.icons.outlined.Code
 import androidx.compose.material.icons.outlined.FilterAlt
 import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.School
+import androidx.compose.material.icons.outlined.Terminal
 import androidx.compose.material.icons.outlined.Science
 import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material3.AlertDialog
@@ -77,6 +79,8 @@ fun SettingsScreen(
     onLogEnabledChange: (Boolean) -> Unit,
     onSpamEnabledChange: (Boolean) -> Unit,
     onSpamThresholdChange: (Float) -> Unit,
+    onOpenDebugLog: () -> Unit,
+    onDebugLogEnabledChange: (Boolean) -> Unit,
     appearance: Appearance,
     onDarkModeChange: (DarkMode) -> Unit,
     onDynamicColorChange: (Boolean) -> Unit,
@@ -223,11 +227,36 @@ fun SettingsScreen(
                 icon = Icons.Outlined.Science,
                 title = stringResource(R.string.test),
                 supporting = stringResource(R.string.test_hint),
-                shape = groupedListShape(0, 1),
+                shape = groupedListShape(0, 3),
                 onClick = onRequestTest,
             ) {
                 Icon(
                     imageVector = Icons.AutoMirrored.Outlined.OpenInNew,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+        item {
+            SettingSwitchRow(
+                icon = Icons.Outlined.BugReport,
+                title = stringResource(R.string.debug_log_switch),
+                supporting = stringResource(R.string.debug_log_switch_hint),
+                checked = config.debugLogEnabled,
+                shape = groupedListShape(1, 3),
+                onCheckedChange = onDebugLogEnabledChange,
+            )
+        }
+        item {
+            SettingRow(
+                icon = Icons.Outlined.Terminal,
+                title = stringResource(R.string.debug_log),
+                supporting = stringResource(R.string.debug_log_hint),
+                shape = groupedListShape(2, 3),
+                onClick = onOpenDebugLog,
+            ) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Outlined.KeyboardArrowRight,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

@@ -34,6 +34,13 @@ class FilterConfigCodecTest {
     }
 
     @Test
+    fun roundTripsDebugLogSwitch() {
+        val off = FilterConfigCodec.decode(FilterConfigCodec.encode(FilterConfig(debugLogEnabled = false)))
+        assertFalse(off.debugLogEnabled)
+        assertTrue(FilterConfigCodec.decode("""{"enabled":true}""").debugLogEnabled)
+    }
+
+    @Test
     fun clampsThresholdIntoRange() {
         val decoded = FilterConfigCodec.decode("""{"spamThreshold":7}""")
         assertEquals(0.99f, decoded.spamThreshold, 1e-6f)

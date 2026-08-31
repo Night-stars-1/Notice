@@ -18,6 +18,7 @@ object FilterConfigCodec {
         root.put("spamThreshold", config.spamThreshold.toDouble())
         root.put("spamExcludedPackages", JSONArray(config.spamExcludedPackages))
         root.put("spamDeltaVersion", config.spamDeltaVersion)
+        root.put("debugLogEnabled", config.debugLogEnabled)
         val rules = JSONArray()
         for (rule in config.rules) {
             rules.put(encodeRule(rule))
@@ -43,6 +44,7 @@ object FilterConfigCodec {
                 .coerceIn(FilterConfig.MIN_SPAM_THRESHOLD, FilterConfig.MAX_SPAM_THRESHOLD),
             spamExcludedPackages = stringList(root.optJSONArray("spamExcludedPackages")),
             spamDeltaVersion = root.optLong("spamDeltaVersion", 0L),
+            debugLogEnabled = root.optBoolean("debugLogEnabled", true),
         )
     }
 

@@ -101,6 +101,7 @@ import moe.notice.filter.domain.DarkMode
 import moe.notice.filter.domain.BlockRule
 import moe.notice.filter.domain.FilterConfig
 import moe.notice.filter.domain.NotificationRecord
+import moe.notice.filter.ui.logs.DebugLogScreen
 import moe.notice.filter.ui.logs.LogsScreen
 import moe.notice.filter.ui.rules.AppPickerScreen
 import moe.notice.filter.ui.rules.RuleEditorScreen
@@ -135,6 +136,8 @@ fun NoticeApp(
         var pickingApps by remember { mutableStateOf(false) }
         var pickingSpamApps by remember { mutableStateOf(false) }
         var pickingLogApps by remember { mutableStateOf(false) }
+        var showDebugLog by remember { mutableStateOf(false) }
+        val debugLines by viewModel.debugLines.collectAsStateWithLifecycle()
         var logAppPackages by remember { mutableStateOf<Set<String>>(emptySet()) }
         val snackbar = remember { SnackbarHostState() }
         val scope = rememberCoroutineScope()
@@ -174,6 +177,7 @@ fun NoticeApp(
         }
 
         val screen = when {
+            showDebugLog -> Screen.DebugLog
             pickingSpamApps || pickingLogApps -> Screen.Apps
             pickingApps && draft != null -> Screen.Apps
             draft != null -> Screen.Editor
@@ -182,6 +186,7 @@ fun NoticeApp(
         if (screen != Screen.Home) {
             BackHandler {
                 when {
+                    showDebugLog -> showDebugLog = false
                     pickingSpamApps -> pickingSpamApps = false
                     pickingLogApps -> pickingLogApps = false
                     screen == Screen.Apps -> pickingApps = false
@@ -202,6 +207,12 @@ fun NoticeApp(
             label = "screen",
         ) { current ->
             when (current) {
+                Screen.DebugLog -> DebugLogScreen(
+                    lines = debugLines,
+                    appLabel = viewModel::labelFor,
+                    onClear = viewModel::clearDebugLog,
+                    onBack = { showDebugLog = false },
+                )
                 Screen.Apps -> if (pickingLogApps) {
                     // 仅列出出现在日志中的应用；已卸载的应用回退为显示包名。
                     val logApps = remember(records, apps) {
@@ -286,6 +297,8 @@ fun NoticeApp(
                         onLogEnabledChange = viewModel::setLogEnabled,
                         onSpamEnabledChange = viewModel::setSpamEnabled,
                         onSpamThresholdChange = viewModel::setSpamThreshold,
+                        onOpenDebugLog = { showDebugLog = true },
+                        onDebugLogEnabledChange = viewModel::setDebugLogEnabled,
                         appearance = appearance,
                         onDarkModeChange = viewModel::setDarkMode,
                         onDynamicColorChange = viewModel::setDynamicColor,
@@ -329,6 +342,8 @@ private fun HomeScaffold(
     onLogEnabledChange: (Boolean) -> Unit,
     onSpamEnabledChange: (Boolean) -> Unit,
     onSpamThresholdChange: (Float) -> Unit,
+    onOpenDebugLog: () -> Unit,
+    onDebugLogEnabledChange: (Boolean) -> Unit,
     appearance: Appearance,
     onDarkModeChange: (DarkMode) -> Unit,
     onDynamicColorChange: (Boolean) -> Unit,
@@ -593,6 +608,8 @@ private fun HomeScaffold(
                     onLogEnabledChange = onLogEnabledChange,
                     onSpamEnabledChange = onSpamEnabledChange,
                     onSpamThresholdChange = onSpamThresholdChange,
+                    onOpenDebugLog = onOpenDebugLog,
+                    onDebugLogEnabledChange = onDebugLogEnabledChange,
                     appearance = appearance,
                     onDarkModeChange = onDarkModeChange,
                     onDynamicColorChange = onDynamicColorChange,
@@ -627,7 +644,7 @@ private fun HomeScaffold(
     }
 }
 
-private enum class Screen { Home, Editor, Apps }
+private enum class Screen { Home, Editor, Apps, DebugLog }
 
 /** 屏幕之间前进/后退导航所用的 M3 shared-axis X 位移。 */
 private val SHARED_AXIS_OFFSET = 30.dp

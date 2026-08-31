@@ -6,6 +6,7 @@ import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.net.Uri
 import android.os.Build
 import java.util.concurrent.Executors
 import java.util.concurrent.ScheduledFuture
@@ -23,14 +24,14 @@ internal class LogSink {
     private val worker = Executors.newSingleThreadScheduledExecutor { runnable ->
         Thread(runnable, "notice-log").apply { isDaemon = true }
     }
-    private val pending = ArrayDeque<ContentValues>()
+    private val pending = ArrayDeque<Pair<Uri, ContentValues>>()
     private var scheduled: ScheduledFuture<*>? = null
     private var receiverRegistered = false
 
-    fun submit(ctx: Context, values: ContentValues) {
+    fun submit(ctx: Context, values: ContentValues, uri: Uri = NotificationLogProvider.CONTENT_URI) {
         worker.execute {
             ensureReceiver(ctx)
-            pending.addLast(values)
+            pending.addLast(uri to values)
             while (pending.size > MAX_PENDING) pending.removeFirst()
             when {
                 appRunning(ctx) || pending.size >= FLUSH_THRESHOLD -> flush(ctx)
@@ -48,11 +49,11 @@ internal class LogSink {
         scheduled?.cancel(false)
         scheduled = null
         while (pending.isNotEmpty()) {
-            val values = pending.removeFirst()
+            val (uri, values) = pending.removeFirst()
             try {
-                ctx.contentResolver.insert(NotificationLogProvider.CONTENT_URI, values)
+                ctx.contentResolver.insert(uri, values)
             } catch (t: Throwable) {
-                Xp.log("log insert failed", t)
+                Xp.log("log insert failed", t, mirror = false)
             }
         }
     }
@@ -64,7 +65,7 @@ internal class LogSink {
                 proc.pkgList?.contains(BuildConfig.APPLICATION_ID) == true
             } == true
         } catch (t: Throwable) {
-            Xp.log("query running processes failed", t)
+            Xp.log("query running processes failed", t, mirror = false)
             false
         }
     }
@@ -86,7 +87,7 @@ internal class LogSink {
                 ctx.registerReceiver(receiver, filter)
             }
         } catch (t: Throwable) {
-            Xp.log("register flush receiver failed", t)
+            Xp.log("register flush receiver failed", t, mirror = false)
         }
     }
 

@@ -9,6 +9,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.graphics.drawable.Icon
+import android.os.Binder
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
@@ -123,6 +124,9 @@ internal class BlockedInbox {
         val snapshot = synchronized(lock) { ArrayList(items.values) }
         val ctx = context ?: return
         val appCtx = pkgContext ?: ctx
+        // 可能运行在被拦截应用的 binder 调用里：清掉调用方身份，否则 NMS 会按对方的 uid 做校验
+        //（"Package moe.notice.filter is not owned by uid …"）。
+        val identity = Binder.clearCallingIdentity()
         try {
             ensureChannel(ctx, appCtx)
             val nm = ctx.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
@@ -134,6 +138,8 @@ internal class BlockedInbox {
             postSummary(nm, notification)
         } catch (t: Throwable) {
             Xp.log("publish inbox failed", t)
+        } finally {
+            Binder.restoreCallingIdentity(identity)
         }
     }
 

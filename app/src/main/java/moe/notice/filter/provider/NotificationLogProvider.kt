@@ -6,6 +6,7 @@ import android.database.Cursor
 import android.net.Uri
 import android.os.Binder
 import android.os.Process
+import moe.notice.filter.data.DebugLogRepository
 import moe.notice.filter.data.LogRepository
 import moe.notice.filter.data.NotificationDetailsCodec
 
@@ -16,6 +17,15 @@ class NotificationLogProvider : ContentProvider() {
         val uid = Binder.getCallingUid()
         if (uid != Process.SYSTEM_UID && uid != Process.myUid()) return null
         val ctx = context ?: return null
+        if (uri.lastPathSegment == DEBUG_PATH) {
+            DebugLogRepository.get(ctx).append(
+                timestamp = values?.getAsLong(COL_TIMESTAMP) ?: System.currentTimeMillis(),
+                level = values?.getAsInteger(COL_LEVEL) ?: android.util.Log.INFO,
+                message = values?.getAsString(COL_MESSAGE).orEmpty(),
+                trace = values?.getAsString(COL_TRACE).orEmpty(),
+            )
+            return uri
+        }
         val record = LogRepository.get(ctx).add(
             packageName = values?.getAsString(COL_PACKAGE).orEmpty(),
             title = values?.getAsString(COL_TITLE).orEmpty(),
@@ -59,6 +69,12 @@ class NotificationLogProvider : ContentProvider() {
         const val COL_RULE_NAME = "rule_name"
         const val COL_DETAILS = "details"
 
+        const val COL_LEVEL = "level"
+        const val COL_MESSAGE = "message"
+        const val COL_TRACE = "trace"
+        private const val DEBUG_PATH = "debug"
+
         val CONTENT_URI: Uri = Uri.parse("content://$AUTHORITY/notifications")
+        val DEBUG_URI: Uri = Uri.parse("content://$AUTHORITY/$DEBUG_PATH")
     }
 }

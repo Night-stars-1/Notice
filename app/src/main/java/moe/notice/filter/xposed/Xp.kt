@@ -12,14 +12,17 @@ internal object Xp {
     @Volatile
     var api: XposedInterface? = null
 
-    fun log(msg: String) {
+    /** 写入框架日志；[mirror] 为 true 时同时镜像到应用的「运行日志」页面。 */
+    fun log(msg: String, mirror: Boolean = true) {
         val a = api
         if (a != null) a.log(Log.INFO, TAG, msg) else Log.i(TAG, msg)
+        if (mirror) DebugLog.append(Log.INFO, msg, null)
     }
 
-    fun log(msg: String, t: Throwable) {
+    fun log(msg: String, t: Throwable, mirror: Boolean = true) {
         val a = api
         if (a != null) a.log(Log.ERROR, TAG, msg, t) else Log.e(TAG, msg, t)
+        if (mirror) DebugLog.append(Log.ERROR, msg, t)
     }
 
     /** 调用原始实现，绕过 [method] 上的所有 hook。 */

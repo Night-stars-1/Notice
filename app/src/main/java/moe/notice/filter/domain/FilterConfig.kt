@@ -10,6 +10,8 @@ data class FilterConfig(
     val spamExcludedPackages: List<String> = emptyList(),
     /** 最近一次写入远程文件的设备端微调 delta 的时间戳；0 表示没有。 */
     val spamDeltaVersion: Long = 0L,
+    /** 是否把模块运行日志镜像到应用（设置 → 调试 → 运行日志）。 */
+    val debugLogEnabled: Boolean = true,
 ) {
     companion object {
         const val DEFAULT_SPAM_THRESHOLD = 0.9f

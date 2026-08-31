@@ -20,6 +20,8 @@ import moe.notice.filter.R
 import moe.notice.filter.TestNotifier
 import moe.notice.filter.data.AppCatalog
 import moe.notice.filter.data.AppearanceRepository
+import moe.notice.filter.data.DebugLine
+import moe.notice.filter.data.DebugLogRepository
 import moe.notice.filter.data.InstalledApp
 import moe.notice.filter.data.LogRepository
 import moe.notice.filter.data.RuleRepository
@@ -40,6 +42,7 @@ class NoticeViewModel(application: Application) : AndroidViewModel(application) 
     private val catalog = AppCatalog(application)
     private val spamLabels = SpamLabelRepository(application)
     private val appearanceRepo = AppearanceRepository(application)
+    private val debugLog = DebugLogRepository.get(application)
 
     val config: StateFlow<FilterConfig> = rules.config
         .stateIn(viewModelScope, SharingStarted.Eagerly, rules.config.value)
@@ -47,6 +50,9 @@ class NoticeViewModel(application: Application) : AndroidViewModel(application) 
     val records: StateFlow<List<NotificationRecord>> = logs.items
 
     val appearance: StateFlow<Appearance> = appearanceRepo.appearance
+
+    /** 模块运行日志，最新在最前。 */
+    val debugLines: StateFlow<List<DebugLine>> = debugLog.items
 
     /** 用户的垃圾/正常标注，以记录 id 为键。 */
     val labels: StateFlow<Map<String, SpamLabel>> = spamLabels.labels
@@ -132,6 +138,12 @@ class NoticeViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun clearLogs() = logs.clear()
+
+    fun clearDebugLog() = debugLog.clear()
+
+    fun setDebugLogEnabled(enabled: Boolean) {
+        report(rules.setDebugLogEnabled(enabled))
+    }
 
     fun labelFor(packageName: String): String {
         val cached = _apps.value.firstOrNull { it.packageName == packageName }

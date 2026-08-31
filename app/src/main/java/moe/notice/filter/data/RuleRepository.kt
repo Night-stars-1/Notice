@@ -63,6 +63,8 @@ class RuleRepository(context: Context) {
 
     fun setSpamDeltaVersion(version: Long): Boolean = save(_config.value.copy(spamDeltaVersion = version))
 
+    fun setDebugLogEnabled(enabled: Boolean): Boolean = save(_config.value.copy(debugLogEnabled = enabled))
+
     fun upsert(rule: BlockRule): Boolean {
         val current = _config.value
         val rules = current.rules.toMutableList()

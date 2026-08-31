@@ -86,6 +86,7 @@ internal class KeywordFilter {
     }
 
     fun shouldBlock(args: Array<Any?>, context: Context?): Boolean {
+        if (context != null) DebugLog.attach(context, sink)
 
         var pkg: String? = null
         var notification: Notification? = null
@@ -201,6 +202,7 @@ internal class KeywordFilter {
     }
 
     private fun logConfig(source: String) {
+        DebugLog.enabled = config.debugLogEnabled
         val summary = "enabled=${config.enabled} log=${config.logEnabled} spam=${config.spamEnabled}@${config.spamThreshold} delta=${config.spamDeltaVersion} excluded=${config.spamExcludedPackages.size} rules=${config.rules.size} $source"
         if (summary == lastConfigSummary) return
         lastConfigSummary = summary
