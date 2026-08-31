@@ -8,6 +8,14 @@ import moe.notice.filter.domain.SpamDelta
 
 /** 把微调 delta 写入模块的 libxposed 远程文件，以便 system_server 读取。 */
 object SpamDeltaWriter {
+    /** 读取当前已下发的修正量；不存在、为空或损坏时返回 null。 */
+    fun read(): SpamDelta? {
+        val pfd = ModuleStatus.openRemoteFile(SpamDelta.REMOTE_FILE) ?: return null
+        return runCatching {
+            ParcelFileDescriptor.AutoCloseInputStream(pfd).use { SpamDelta.decode(it) }
+        }.getOrNull()?.takeUnless { it.isEmpty }
+    }
+
     fun write(delta: SpamDelta): Boolean {
         val pfd = ModuleStatus.openRemoteFile(SpamDelta.REMOTE_FILE) ?: return false
         return try {

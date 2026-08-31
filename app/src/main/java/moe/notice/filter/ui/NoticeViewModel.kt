@@ -33,6 +33,7 @@ import moe.notice.filter.domain.BlockRule
 import moe.notice.filter.domain.DarkMode
 import moe.notice.filter.domain.FilterConfig
 import moe.notice.filter.domain.NotificationRecord
+import moe.notice.filter.domain.SpamExplainer
 import moe.notice.filter.domain.SpamModel
 import moe.notice.filter.domain.SpamTuner
 
@@ -79,9 +80,22 @@ class NoticeViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     /** 根据全部标注重新拟合调优增量，并下发给 system_server。 */
+    /** 解释用的模型：内置模型叠加当前微调量；微调后刷新。 */
+    @Volatile private var explainModel: SpamModel? = null
+
+    /** 计算一条记录的骚扰分数依据；模型不可用时返回 null。 */
+    fun explain(record: NotificationRecord): SpamExplainer.Explanation? {
+        val model = explainModel ?: run {
+            val base = SpamModel.bundled() ?: return null
+            (SpamDeltaWriter.read()?.let { base.withDelta(it) } ?: base).also { explainModel = it }
+        }
+        return SpamExplainer.explain(model, SpamLabelRepository.trainingText(record))
+    }
+
     private fun retune(labels: Collection<SpamLabel>) {
         val base = SpamModel.bundled() ?: return
         val delta = SpamTuner.fit(base, labels.map { SpamTuner.Sample(it.text, it.spam) })
+        explainModel = base.withDelta(delta)
         if (SpamDeltaWriter.write(delta)) {
             report(rules.setSpamDeltaVersion(System.currentTimeMillis()))
         } else {

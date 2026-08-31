@@ -32,6 +32,24 @@ object SpamFeatures {
         return out.toString()
     }
 
+    /**
+     * 与 [normalize] 相同的归一化，但额外返回「归一化后每个字符在原文中的下标」，供解释高亮使用。
+     * 大小写按单字符转换（与 String.lowercase() 在极少数特殊字符上可能不同）。
+     */
+    fun normalizeWithMap(text: String): Pair<String, IntArray> {
+        val out = StringBuilder(text.length)
+        val map = IntArray(text.length)
+        var n = 0
+        for (i in text.indices) {
+            val raw = Character.toLowerCase(text[i])
+            if (raw in SPACE_CHARS || raw == 'x') continue
+            if (Character.getType(raw) == Character.DECIMAL_DIGIT_NUMBER.toInt()) continue
+            out.append(raw)
+            map[n++] = i
+        }
+        return out.toString() to map.copyOf(n)
+    }
+
     /** 对 [start, end) 区间内的 UTF-16 码元计算 FNV-1a，每个码元按（低字节, 高字节）顺序输入。 */
     fun fnv1a32(text: CharSequence, start: Int, end: Int): Int {
         var h = FNV_OFFSET

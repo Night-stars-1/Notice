@@ -17,6 +17,11 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import kotlinx.coroutines.launch
 import androidx.compose.foundation.layout.Arrangement
+import moe.notice.filter.domain.SpamExplainer
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.graphics.Color
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -83,6 +88,7 @@ fun LogsScreen(
     appLabel: (String) -> String,
     labels: Map<String, Boolean>,
     onLabel: (NotificationRecord, Boolean?) -> Unit,
+    explain: (NotificationRecord) -> SpamExplainer.Explanation?,
     contentPadding: PaddingValues,
 ) {
     var selected by remember { mutableStateOf<NotificationRecord?>(null) }
@@ -208,6 +214,7 @@ fun LogsScreen(
                 appLabel = appLabel(record.packageName),
                 label = labels[record.id],
                 onLabel = { onLabel(record, it) },
+                explanation = if (record.details.spamScore != null) remember(record.id) { explain(record) } else null,
             )
         }
     }
@@ -333,8 +340,17 @@ private fun NotificationDetailSheet(
     appLabel: String,
     label: Boolean?,
     onLabel: (Boolean?) -> Unit,
+    explanation: SpamExplainer.Explanation?,
 ) {
     val details = record.details
+    // 解释是针对「标题\n正文」算的：把片段区间拆回标题 / 正文各自的下标。
+    val titleLen = if (record.title.isNotBlank()) record.title.length else -1
+    val positiveRanges = explanation?.positives.orEmpty().map { it.range }
+    val titleHighlights = positiveRanges.filter { titleLen >= 0 && it.last < titleLen }
+    val textHighlights = positiveRanges.mapNotNull { r ->
+        val offset = if (titleLen >= 0) titleLen + 1 else 0
+        if (r.first >= offset) (r.first - offset)..(r.last - offset) else null
+    }
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -409,6 +425,9 @@ private fun NotificationDetailSheet(
                         if (details.spamProtected) stringResource(R.string.log_spam_protected, shown) else shown,
                     )
                 }
+                if (explanation != null && (explanation.positives.isNotEmpty() || explanation.negatives.isNotEmpty())) {
+                    ReasonRow(explanation)
+                }
                 DetailRow(
                     stringResource(R.string.log_detail_time),
                     DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.MEDIUM).format(Date(record.timestamp)),
@@ -416,8 +435,8 @@ private fun NotificationDetailSheet(
                 if (record.updateCount > 0) {
                     DetailRow(stringResource(R.string.log_detail_updates), record.updateCount.toString())
                 }
-                DetailRow(stringResource(R.string.log_detail_title_field), record.title)
-                DetailRow(stringResource(R.string.log_detail_text), record.text)
+                DetailRow(stringResource(R.string.log_detail_title_field), record.title, titleHighlights)
+                DetailRow(stringResource(R.string.log_detail_text), record.text, textHighlights)
                 DetailRow(stringResource(R.string.log_detail_big_title), details.bigTitle)
                 DetailRow(stringResource(R.string.log_detail_big_text), details.bigText)
                 DetailRow(stringResource(R.string.log_detail_sub_text), details.subText)
@@ -447,15 +466,29 @@ private fun NotificationDetailSheet(
 }
 
 @Composable
-private fun DetailRow(label: String, value: String) {
+private fun DetailRow(label: String, value: String, highlights: List<IntRange> = emptyList()) {
     if (value.isBlank()) return
+    val highlightStyle = SpanStyle(
+        background = MaterialTheme.colorScheme.errorContainer,
+        color = MaterialTheme.colorScheme.onErrorContainer,
+    )
+    val annotated = remember(value, highlights, highlightStyle) {
+        buildAnnotatedString {
+            append(value)
+            for (r in highlights) {
+                val start = r.first.coerceIn(0, value.length)
+                val end = (r.last + 1).coerceIn(start, value.length)
+                if (end > start) addStyle(highlightStyle, start, end)
+            }
+        }
+    }
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Text(
             text = label,
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        Text(text = value, style = MaterialTheme.typography.bodyLarge)
+        Text(text = annotated, style = MaterialTheme.typography.bodyLarge)
     }
 }
 
@@ -559,5 +592,47 @@ private fun LabelCard(label: Boolean?, onLabel: (Boolean?) -> Unit) {
                 }
             }
         }
+    }
+}
+
+/** 骚扰分数的依据：推高分数的片段（红）与拉低分数的片段（灰），数值为 logit 贡献。 */
+@Composable
+private fun ReasonRow(explanation: SpamExplainer.Explanation) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(
+            text = stringResource(R.string.log_detail_reasons),
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            explanation.positives.forEach { term ->
+                ReasonChip(
+                    text = term.text + " +" + String.format(Locale.ROOT, "%.1f", term.contribution),
+                    container = MaterialTheme.colorScheme.errorContainer,
+                    content = MaterialTheme.colorScheme.onErrorContainer,
+                )
+            }
+            explanation.negatives.forEach { term ->
+                ReasonChip(
+                    text = term.text + " −" + String.format(Locale.ROOT, "%.1f", -term.contribution),
+                    container = MaterialTheme.colorScheme.surfaceContainerHighest,
+                    content = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ReasonChip(text: String, container: Color, content: Color) {
+    Surface(shape = CircleShape, color = container, contentColor = content) {
+        Text(
+            text = text,
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+            style = MaterialTheme.typography.labelMedium,
+        )
     }
 }

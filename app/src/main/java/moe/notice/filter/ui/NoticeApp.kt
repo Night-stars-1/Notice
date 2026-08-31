@@ -98,6 +98,7 @@ import moe.notice.filter.data.orSystemPackage
 import moe.notice.filter.domain.Appearance
 import moe.notice.filter.domain.AppListMode
 import moe.notice.filter.domain.DarkMode
+import moe.notice.filter.domain.SpamExplainer
 import moe.notice.filter.domain.BlockRule
 import moe.notice.filter.domain.FilterConfig
 import moe.notice.filter.domain.NotificationRecord
@@ -309,6 +310,7 @@ fun NoticeApp(
                         onClearLabels = viewModel::clearLabels,
                         labels = labels.mapValues { it.value.spam },
                         onLabel = viewModel::setLabel,
+                        explain = viewModel::explain,
                         logAppPackages = logAppPackages,
                         onPickLogApps = { pickingLogApps = true },
                         onClearLogApps = { logAppPackages = emptySet() },
@@ -354,6 +356,7 @@ private fun HomeScaffold(
     onClearLabels: () -> Unit,
     labels: Map<String, Boolean>,
     onLabel: (NotificationRecord, Boolean?) -> Unit,
+    explain: (NotificationRecord) -> SpamExplainer.Explanation?,
     logAppPackages: Set<String>,
     onPickLogApps: () -> Unit,
     onClearLogApps: () -> Unit,
@@ -600,6 +603,7 @@ private fun HomeScaffold(
                     appLabel = appLabel,
                     labels = labels,
                     onLabel = onLabel,
+                    explain = explain,
                     contentPadding = padding,
                 )
                 else -> SettingsScreen(
