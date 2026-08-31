@@ -2,6 +2,33 @@ package moe.notice.filter.ui.settings
 
 import android.content.Intent
 import android.net.Uri
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.outlined.Check
+import androidx.compose.material.icons.outlined.Colorize
+import androidx.compose.material.icons.outlined.DarkMode
+import androidx.compose.material.icons.outlined.Palette
+import androidx.compose.material3.RadioButton
+import androidx.compose.material3.Surface
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
+import moe.notice.filter.domain.Appearance
+import moe.notice.filter.domain.DarkMode
+import moe.notice.filter.ui.theme.ThemePresets
+import moe.notice.filter.ui.theme.supportsDynamicColor
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.lazy.LazyColumn
@@ -50,6 +77,10 @@ fun SettingsScreen(
     onLogEnabledChange: (Boolean) -> Unit,
     onSpamEnabledChange: (Boolean) -> Unit,
     onSpamThresholdChange: (Float) -> Unit,
+    appearance: Appearance,
+    onDarkModeChange: (DarkMode) -> Unit,
+    onDynamicColorChange: (Boolean) -> Unit,
+    onThemeColorChange: (String) -> Unit,
     spamExcludedCount: Int,
     onPickSpamApps: () -> Unit,
     tuneSampleCount: Int,
@@ -58,6 +89,7 @@ fun SettingsScreen(
     contentPadding: PaddingValues,
 ) {
     var confirmClearLabels by remember { mutableStateOf(false) }
+    var darkModeDialog by remember { mutableStateOf(false) }
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(
@@ -152,6 +184,39 @@ fun SettingsScreen(
                 }
             }
         }
+        item { SectionHeader(stringResource(R.string.section_appearance)) }
+        val showThemeColor = !(appearance.dynamicColor && supportsDynamicColor)
+        val appearanceCount = 1 + (if (supportsDynamicColor) 1 else 0) + (if (showThemeColor) 1 else 0)
+        item {
+            SettingRow(
+                icon = Icons.Outlined.DarkMode,
+                title = stringResource(R.string.dark_mode),
+                supporting = stringResource(appearance.darkMode.labelRes()),
+                shape = groupedListShape(0, appearanceCount),
+                onClick = { darkModeDialog = true },
+            )
+        }
+        if (supportsDynamicColor) {
+            item {
+                SettingSwitchRow(
+                    icon = Icons.Outlined.Palette,
+                    title = stringResource(R.string.dynamic_color),
+                    supporting = stringResource(R.string.dynamic_color_hint),
+                    checked = appearance.dynamicColor,
+                    shape = groupedListShape(1, appearanceCount),
+                    onCheckedChange = onDynamicColorChange,
+                )
+            }
+        }
+        if (showThemeColor) {
+            item {
+                ThemeColorRow(
+                    selected = appearance.themeColor,
+                    shape = groupedListShape(appearanceCount - 1, appearanceCount),
+                    onSelect = onThemeColorChange,
+                )
+            }
+        }
         item { SectionHeader(stringResource(R.string.section_debug)) }
         item {
             SettingRow(
@@ -203,6 +268,36 @@ fun SettingsScreen(
             }
         }
     }
+    if (darkModeDialog) {
+        AlertDialog(
+            onDismissRequest = { darkModeDialog = false },
+            title = { Text(stringResource(R.string.dark_mode)) },
+            text = {
+                Column {
+                    DarkMode.entries.forEach { mode ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(MaterialTheme.shapes.medium)
+                                .clickable {
+                                    onDarkModeChange(mode)
+                                    darkModeDialog = false
+                                }
+                                .padding(vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            RadioButton(selected = appearance.darkMode == mode, onClick = null)
+                            Spacer(Modifier.width(12.dp))
+                            Text(stringResource(mode.labelRes()), style = MaterialTheme.typography.bodyLarge)
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { darkModeDialog = false }) { Text(stringResource(R.string.cancel)) }
+            },
+        )
+    }
     if (confirmClearLabels) {
         AlertDialog(
             onDismissRequest = { confirmClearLabels = false },
@@ -220,5 +315,67 @@ fun SettingsScreen(
                 }
             },
         )
+    }
+}
+
+private fun DarkMode.labelRes(): Int = when (this) {
+    DarkMode.SYSTEM -> R.string.dark_mode_system
+    DarkMode.LIGHT -> R.string.dark_mode_light
+    DarkMode.DARK -> R.string.dark_mode_dark
+}
+
+/** Title plus a row of seed-colour swatches; the selected one carries a check mark. */
+@Composable
+private fun ThemeColorRow(
+    selected: String,
+    shape: Shape,
+    onSelect: (String) -> Unit,
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = shape,
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.Colorize,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(text = stringResource(R.string.theme_color), style = MaterialTheme.typography.titleMedium)
+            }
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState())
+                    .padding(start = 40.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                ThemePresets.all.forEach { preset ->
+                    val isSelected = preset.id == selected
+                    Surface(
+                        onClick = { onSelect(preset.id) },
+                        modifier = Modifier.size(40.dp),
+                        shape = CircleShape,
+                        color = preset.seed,
+                        contentColor = Color.White,
+                        border = if (isSelected) BorderStroke(2.dp, MaterialTheme.colorScheme.onSurface) else null,
+                    ) {
+                        if (isSelected) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(Icons.Outlined.Check, contentDescription = preset.name)
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }

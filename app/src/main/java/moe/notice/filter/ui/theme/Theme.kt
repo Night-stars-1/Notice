@@ -3,6 +3,7 @@ package moe.notice.filter.ui.theme
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialExpressiveTheme
 import androidx.compose.material3.MotionScheme
 import androidx.compose.material3.Shapes
@@ -16,6 +17,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import moe.notice.filter.domain.Appearance
+import moe.notice.filter.domain.DarkMode
 
 private val LightColors = lightColorScheme(
     primary = Color(0xFF0B57D0),
@@ -80,19 +83,50 @@ private val NoticeShapes = Shapes(
     extraLarge = RoundedCornerShape(28.dp),
 )
 
+/** A selectable accent palette: hand-tuned "blue" plus the generated presets. */
+data class ThemePreset(
+    val id: String,
+    val name: String,
+    val seed: Color,
+    val light: ColorScheme,
+    val dark: ColorScheme,
+)
+
+object ThemePresets {
+    val blue = ThemePreset(
+        id = Appearance.DEFAULT_THEME_COLOR,
+        name = "蓝",
+        seed = Color(0xFF0B57D0),
+        light = LightColors,
+        dark = DarkColors,
+    )
+    val all: List<ThemePreset> = listOf(blue) + GeneratedThemePresets
+
+    fun byId(id: String): ThemePreset = all.firstOrNull { it.id == id } ?: blue
+}
+
+/** Whether Material You dynamic colour is available on this device. */
+val supportsDynamicColor: Boolean get() = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+
+@Composable
+fun Appearance.isDark(): Boolean = when (darkMode) {
+    DarkMode.SYSTEM -> isSystemInDarkTheme()
+    DarkMode.LIGHT -> false
+    DarkMode.DARK -> true
+}
+
 @Composable
 fun NoticeTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
-    dynamicColor: Boolean = true,
+    appearance: Appearance = Appearance(),
     content: @Composable () -> Unit,
 ) {
+    val darkTheme = appearance.isDark()
     val colorScheme = when {
-        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
+        appearance.dynamicColor && supportsDynamicColor -> {
             val context = LocalContext.current
             if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
         }
-        darkTheme -> DarkColors
-        else -> LightColors
+        else -> ThemePresets.byId(appearance.themeColor).let { if (darkTheme) it.dark else it.light }
     }
     MaterialExpressiveTheme(
         colorScheme = colorScheme,

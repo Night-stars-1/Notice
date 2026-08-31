@@ -6,6 +6,11 @@ import android.os.Build
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import android.content.ContextWrapper
+import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
+import androidx.activity.enableEdgeToEdge
+import androidx.compose.runtime.SideEffect
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -83,7 +88,9 @@ import moe.notice.filter.R
 import moe.notice.filter.data.InstalledApp
 import moe.notice.filter.data.SYSTEM_PACKAGE
 import moe.notice.filter.data.orSystemPackage
+import moe.notice.filter.domain.Appearance
 import moe.notice.filter.domain.AppListMode
+import moe.notice.filter.domain.DarkMode
 import moe.notice.filter.domain.BlockRule
 import moe.notice.filter.domain.FilterConfig
 import moe.notice.filter.domain.NotificationRecord
@@ -93,6 +100,7 @@ import moe.notice.filter.ui.rules.RuleEditorScreen
 import moe.notice.filter.ui.rules.RulesScreen
 import moe.notice.filter.ui.settings.SettingsScreen
 import moe.notice.filter.ui.theme.NoticeTheme
+import moe.notice.filter.ui.theme.isDark
 
 @Composable
 fun NoticeApp(
@@ -100,7 +108,9 @@ fun NoticeApp(
     openLogs: Boolean = false,
     onLogsConsumed: () -> Unit = {},
 ) {
-    NoticeTheme {
+    val appearance by viewModel.appearance.collectAsStateWithLifecycle()
+    NoticeTheme(appearance = appearance) {
+        SystemBarsEffect(dark = appearance.isDark())
         val config by viewModel.config.collectAsStateWithLifecycle()
         val records by viewModel.records.collectAsStateWithLifecycle()
         val apps by viewModel.apps.collectAsStateWithLifecycle()
@@ -263,6 +273,10 @@ fun NoticeApp(
                         onLogEnabledChange = viewModel::setLogEnabled,
                         onSpamEnabledChange = viewModel::setSpamEnabled,
                         onSpamThresholdChange = viewModel::setSpamThreshold,
+                        appearance = appearance,
+                        onDarkModeChange = viewModel::setDarkMode,
+                        onDynamicColorChange = viewModel::setDynamicColor,
+                        onThemeColorChange = viewModel::setThemeColor,
                         spamExcludedCount = config.spamExcludedPackages.size,
                         onPickSpamApps = { pickingSpamApps = true },
                         tuneSampleCount = labels.size,
@@ -302,6 +316,10 @@ private fun HomeScaffold(
     onLogEnabledChange: (Boolean) -> Unit,
     onSpamEnabledChange: (Boolean) -> Unit,
     onSpamThresholdChange: (Float) -> Unit,
+    appearance: Appearance,
+    onDarkModeChange: (DarkMode) -> Unit,
+    onDynamicColorChange: (Boolean) -> Unit,
+    onThemeColorChange: (String) -> Unit,
     spamExcludedCount: Int,
     onPickSpamApps: () -> Unit,
     tuneSampleCount: Int,
@@ -559,6 +577,10 @@ private fun HomeScaffold(
                     onLogEnabledChange = onLogEnabledChange,
                     onSpamEnabledChange = onSpamEnabledChange,
                     onSpamThresholdChange = onSpamThresholdChange,
+                    appearance = appearance,
+                    onDarkModeChange = onDarkModeChange,
+                    onDynamicColorChange = onDynamicColorChange,
+                    onThemeColorChange = onThemeColorChange,
                     spamExcludedCount = spamExcludedCount,
                     onPickSpamApps = onPickSpamApps,
                     tuneSampleCount = tuneSampleCount,
@@ -608,4 +630,21 @@ private fun testKeyword(rules: List<BlockRule>): String? {
         .filter { it.enabled }
         .flatMap { it.keywords.asSequence() }
         .firstOrNull { it.isNotBlank() }
+}
+
+/** Keeps status/navigation bar icon contrast in step with the app's own dark-mode choice. */
+@Composable
+private fun SystemBarsEffect(dark: Boolean) {
+    val context = LocalContext.current
+    SideEffect {
+        val activity = generateSequence(context) { (it as? ContextWrapper)?.baseContext }
+            .filterIsInstance<ComponentActivity>()
+            .firstOrNull() ?: return@SideEffect
+        val style = if (dark) {
+            SystemBarStyle.dark(android.graphics.Color.TRANSPARENT)
+        } else {
+            SystemBarStyle.light(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT)
+        }
+        activity.enableEdgeToEdge(statusBarStyle = style, navigationBarStyle = style)
+    }
 }

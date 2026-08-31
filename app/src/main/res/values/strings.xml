@@ -8,6 +8,14 @@
     <string name="status_api">API %1$d</string>
     <string name="section_general">通用</string>
     <string name="section_ai">AI</string>
+    <string name="section_appearance">外观</string>
+    <string name="dark_mode">夜间模式</string>
+    <string name="dark_mode_system">跟随系统</string>
+    <string name="dark_mode_light">浅色</string>
+    <string name="dark_mode_dark">深色</string>
+    <string name="dynamic_color">动态取色</string>
+    <string name="dynamic_color_hint">跟随壁纸配色（Material You）</string>
+    <string name="theme_color">主题色</string>
     <string name="section_debug">调试</string>
     <string name="section_about">关于</string>
     <string name="enable_filter_hint">关闭后所有规则暂停生效</string>

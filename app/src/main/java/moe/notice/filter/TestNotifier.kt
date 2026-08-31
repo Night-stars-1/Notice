@@ -21,7 +21,7 @@ object TestNotifier {
             )
         }
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_launcher)
+            .setSmallIcon(R.drawable.ic_stat_notice)
             .setContentTitle("Notice 测试")
             .setContentText("关键词：$keyword")
             .setAutoCancel(true)

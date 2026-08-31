@@ -19,13 +19,16 @@ import moe.notice.filter.ModuleStatus
 import moe.notice.filter.R
 import moe.notice.filter.TestNotifier
 import moe.notice.filter.data.AppCatalog
+import moe.notice.filter.data.AppearanceRepository
 import moe.notice.filter.data.InstalledApp
 import moe.notice.filter.data.LogRepository
 import moe.notice.filter.data.RuleRepository
 import moe.notice.filter.data.SpamDeltaWriter
 import moe.notice.filter.data.SpamLabel
 import moe.notice.filter.data.SpamLabelRepository
+import moe.notice.filter.domain.Appearance
 import moe.notice.filter.domain.BlockRule
+import moe.notice.filter.domain.DarkMode
 import moe.notice.filter.domain.FilterConfig
 import moe.notice.filter.domain.NotificationRecord
 import moe.notice.filter.domain.SpamModel
@@ -36,11 +39,14 @@ class NoticeViewModel(application: Application) : AndroidViewModel(application) 
     private val logs = LogRepository.get(application)
     private val catalog = AppCatalog(application)
     private val spamLabels = SpamLabelRepository(application)
+    private val appearanceRepo = AppearanceRepository(application)
 
     val config: StateFlow<FilterConfig> = rules.config
         .stateIn(viewModelScope, SharingStarted.Eagerly, rules.config.value)
 
     val records: StateFlow<List<NotificationRecord>> = logs.items
+
+    val appearance: StateFlow<Appearance> = appearanceRepo.appearance
 
     /** User spam/ham labels keyed by record id. */
     val labels: StateFlow<Map<String, SpamLabel>> = spamLabels.labels
@@ -83,6 +89,12 @@ class NoticeViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun clearLabels() = spamLabels.clear()
+
+    fun setDarkMode(mode: DarkMode) = appearanceRepo.setDarkMode(mode)
+
+    fun setDynamicColor(enabled: Boolean) = appearanceRepo.setDynamicColor(enabled)
+
+    fun setThemeColor(id: String) = appearanceRepo.setThemeColor(id)
 
     fun setSpamExcludedPackages(packages: List<String>) {
         report(rules.setSpamExcludedPackages(packages))

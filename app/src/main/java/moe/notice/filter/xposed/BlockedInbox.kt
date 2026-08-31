@@ -156,7 +156,7 @@ internal class BlockedInbox {
         expanded.setTextViewText(R.id.inbox_view_filtered, appCtx.getString(R.string.blocked_inbox_view))
         expanded.setOnClickPendingIntent(R.id.inbox_view_filtered, openLogsIntent(appCtx))
         val builder = Notification.Builder(appCtx, InboxChannel.ID)
-            .setSmallIcon(Icon.createWithResource(BuildConfig.APPLICATION_ID, R.drawable.ic_launcher))
+            .setSmallIcon(Icon.createWithResource(BuildConfig.APPLICATION_ID, R.drawable.ic_stat_notice))
             .setContentTitle(summary)
             .setContentText(visible.firstOrNull()?.let {
                 val label = appLabel(sysCtx, it.pkg)
