@@ -1,0 +1,5 @@
+<?xml version='1.0' encoding='utf-8' standalone='yes' ?>
+<map>
+    <string name="config">{&quot;enabled&quot;:true,&quot;logEnabled&quot;:true,&quot;rules&quot;:[{&quot;id&quot;:&quot;3670b00e-487c-4f79-9adf-e6b8048e0266&quot;,&quot;name&quot;:&quot;test&quot;,&quot;enabled&quot;:true,&quot;mode&quot;:&quot;contains_any&quot;,&quot;keywords&quot;:[&quot;eee&quot;],&quot;excludeKeywords&quot;:[],&quot;packages&quot;:[]}]}</string>
+    <boolean name="enabled" value="true" />
+</map>

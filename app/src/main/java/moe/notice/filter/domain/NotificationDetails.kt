@@ -1,0 +1,23 @@
+package moe.notice.filter.domain
+
+data class NotificationDetails(
+    val ticker: String = "",
+    val subText: String = "",
+    val infoText: String = "",
+    val summaryText: String = "",
+    val bigText: String = "",
+    val bigTitle: String = "",
+    val channelId: String = "",
+    val category: String = "",
+    val groupKey: String = "",
+    val template: String = "",
+    val tag: String = "",
+    val notificationId: Int = 0,
+    val number: Int = 0,
+    val flags: Int = 0,
+    val visibility: Int = 0,
+    val progress: String = "",
+    val actions: List<String> = emptyList(),
+    val textLines: List<String> = emptyList(),
+    val messages: List<String> = emptyList(),
+)
