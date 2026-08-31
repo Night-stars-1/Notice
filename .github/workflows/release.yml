@@ -44,12 +44,34 @@ jobs:
           echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > "$RUNNER_TEMP/release.jks"
           echo "RELEASE_KEYSTORE_PATH=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
 
+      # versionName = tag（去掉前缀 v）；versionCode = x*10000 + y*100 + z（如 v1.2.3 -> 10203），
+      # 手动触发或 tag 不是 x.y.z 时退回 run_number，保证仍然递增。
+      - name: Resolve version
+        id: version
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then
+            TAG="$(git describe --tags --abbrev=0 2>/dev/null || echo 0.0.0)-manual"
+          fi
+          NAME="${TAG#v}"
+          if [[ "$NAME" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+) ]]; then
+            CODE=$(( ${BASH_REMATCH[1]} * 10000 + ${BASH_REMATCH[2]} * 100 + ${BASH_REMATCH[3]} ))
+          else
+            CODE="${GITHUB_RUN_NUMBER}"
+          fi
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+          echo "code=$CODE" >> "$GITHUB_OUTPUT"
+          echo "versionName=$NAME versionCode=$CODE"
+
       - name: Build release APK
         env:
           RELEASE_KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           RELEASE_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           RELEASE_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-        run: ./gradlew :app:assembleRelease --no-daemon
+        run: >
+          ./gradlew :app:assembleRelease --no-daemon
+          -PversionName="${{ steps.version.outputs.name }}"
+          -PversionCode="${{ steps.version.outputs.code }}"
 
       - name: Rename APK
         id: apk

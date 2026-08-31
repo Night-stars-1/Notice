@@ -11,8 +11,10 @@ android {
         applicationId = "moe.notice.filter"
         minSdk = 29
         targetSdk = 37
-        versionCode = 1
-        versionName = "1.0.0"
+        // CI 通过 -PversionCode / -PversionName 注入（见 release.yml）：versionName 取 Release 的 tag，
+        // versionCode 由 tag 的 x.y.z 计算（x*10000 + y*100 + z），保证随版本单调递增；本地构建用下面的默认值。
+        versionCode = (project.findProperty("versionCode") as String?)?.toIntOrNull() ?: 1
+        versionName = (project.findProperty("versionName") as String?)?.takeIf { it.isNotBlank() } ?: "1.0.0-dev"
     }
 
     // CI 通过环境变量提供正式签名（见 .github/workflows/release.yml）；本地或未配置时退回 debug 签名。
