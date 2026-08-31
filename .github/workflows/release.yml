@@ -143,16 +143,25 @@ jobs:
           if [ "$HAS_AI" = "true" ] && [ -s commits-detail.txt ]; then
             SYSTEM='你是 Android 应用 Notice（LSPosed 通知过滤模块：关键词规则 + 离线 AI 骚扰识别 + 端侧微调）的发布说明撰写者。根据给出的 git 提交记录写一份面向普通用户的更新说明。硬性要求：全文必须使用简体中文（提交记录是英文，需要翻译成中文，不要照抄英文句子）；用 Markdown；按「✨ 新功能」「🔧 改进」「🐛 修复」分组，没有内容的组省略；每条一句话，说用户能感知到的变化，不要出现类名、函数名、binder、正则、ICU 之类实现细节；不要编造提交里没有的内容；不要写标题和开场白，直接输出分组列表。'
             USER_MSG="$(printf '版本：%s\n请用简体中文撰写更新说明。\n提交记录（含改动文件统计）：\n%s' "$TAG" "$(head -c 60000 commits-detail.txt)")"
+            # 兼容 AI_BASE_URL 的几种写法：.../v1、.../v1/chat/completions、或不带 /v1（404 时自动补上重试）
+            BASE="${AI_BASE_URL%/}"
+            case "$BASE" in */chat/completions) URL="$BASE" ;; *) URL="$BASE/chat/completions" ;; esac
             ask_ai() {
-              local extra_sys="$1"
-              local payload resp
+              local extra_sys="$1" payload http
               payload="$(jq -n --arg model "$AI_MODEL" --arg sys "$SYSTEM$extra_sys" --arg user "$USER_MSG" \
                 '{model: $model, temperature: 0.3, messages: [{role: "system", content: $sys}, {role: "user", content: $user}]}')"
-              resp="$(curl -sS --max-time 180 "${AI_BASE_URL%/}/chat/completions" \
-                -H "Authorization: Bearer $AI_API_KEY" -H "Content-Type: application/json" \
-                -d "$payload" || true)"
-              LAST_RESP="$resp"
-              printf '%s' "$resp" | jq -r '.choices[0].message.content // empty' 2>/dev/null || true
+              http="$(curl -sS --max-time 180 -o resp.json -w '%{http_code}' "$URL" \
+                -H "Authorization: Bearer $AI_API_KEY" -H "Content-Type: application/json" -d "$payload" || echo 000)"
+              if [ "$http" = "404" ] && [[ "$URL" != */v1/* ]]; then
+                URL="$BASE/v1/chat/completions"
+                echo "::notice::接口返回 404，改用 $URL 重试。" >&2
+                http="$(curl -sS --max-time 180 -o resp.json -w '%{http_code}' "$URL" \
+                  -H "Authorization: Bearer $AI_API_KEY" -H "Content-Type: application/json" -d "$payload" || echo 000)"
+              fi
+              echo "AI HTTP $http, model=$AI_MODEL, path=/${URL#*://*/}" >&2
+              LAST_RESP="HTTP $http: $(head -c 400 resp.json 2>/dev/null)"
+              [ "$http" = "200" ] || return 0
+              jq -r '.choices[0].message.content // empty' resp.json 2>/dev/null || true
             }
             # 中文字符太少视为没按要求输出：换更强的指令重试一次
             cjk_count() { printf '%s' "$1" | python3 -c 'import re,sys; print(len(re.findall(r"[\u4e00-\u9fff]", sys.stdin.read())))'; }
