@@ -150,9 +150,11 @@ jobs:
             ask_ai() {
               local extra_sys="$1" payload http
               payload="$(jq -n --arg model "$AI_MODEL" --arg sys "$SYSTEM$extra_sys" --arg user "$USER_MSG" \
-                '{model: $model, temperature: 0.3, max_tokens: 1200, messages: [{role: "system", content: $sys}, {role: "user", content: $user}]}')"
-              post() { curl -sS --max-time 240 -o resp.json -w '%{http_code}' "$URL" \
-                -H "Authorization: Bearer $AI_API_KEY" -H "Content-Type: application/json" -d "$payload" || echo 000; }
+                '{model: $model, temperature: 0.3, max_tokens: 1200, stream: true, messages: [{role: "system", content: $sys}, {role: "user", content: $user}]}')"
+              # 流式请求：网关的超时按首字节计算，模型开始输出后连接就不会被掐断；-N 关闭 curl 缓冲
+              post() { curl -sSN --max-time 600 -o resp.json -w '%{http_code}' "$URL" \
+                -H "Authorization: Bearer $AI_API_KEY" -H "Content-Type: application/json" -H "Accept: text/event-stream" \
+                -d "$payload" || echo 000; }
               http="$(post)"
               if [ "$http" = "404" ] && [[ "$URL" != */v1/* ]]; then
                 URL="$BASE/v1/chat/completions"
@@ -167,7 +169,14 @@ jobs:
               echo "AI HTTP $http, model=$AI_MODEL, path=/${URL#*://*/}" >&2
               LAST_RESP="HTTP $http: $(head -c 400 resp.json 2>/dev/null)"
               [ "$http" = "200" ] || return 0
-              jq -r '.choices[0].message.content // empty' resp.json 2>/dev/null || true
+              if grep -q '^data:' resp.json; then
+                # SSE：拼接所有 delta.content
+                grep '^data:' resp.json | sed 's/^data: *//' | grep -v '^\[DONE\]' \
+                  | jq -rj '.choices[0].delta.content // empty' 2>/dev/null || true
+              else
+                # 网关忽略了 stream 参数、直接返回完整 JSON
+                jq -r '.choices[0].message.content // empty' resp.json 2>/dev/null || true
+              fi
             }
             # 中文字符太少视为没按要求输出：换更强的指令重试一次
             cjk_count() { printf '%s' "$1" | python3 -c 'import re,sys; print(len(re.findall(r"[\u4e00-\u9fff]", sys.stdin.read())))'; }
