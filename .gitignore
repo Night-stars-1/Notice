@@ -14,3 +14,7 @@ nul
 .kotlin/
 .pi/
 app/release/
+*.jks
+*.keystore
+app/keystore.properties
+docs/superpowers/

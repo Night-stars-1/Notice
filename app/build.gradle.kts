@@ -15,6 +15,17 @@ android {
         versionName = "1.0.0"
     }
 
+    // CI 通过环境变量提供正式签名（见 .github/workflows/release.yml）；本地或未配置时退回 debug 签名。
+    val releaseKeystore = System.getenv("RELEASE_KEYSTORE_PATH")
+    if (!releaseKeystore.isNullOrBlank()) {
+        signingConfigs.create("release") {
+            storeFile = rootProject.file(releaseKeystore) // 相对路径以仓库根目录为准
+            storePassword = System.getenv("RELEASE_KEYSTORE_PASSWORD")
+            keyAlias = System.getenv("RELEASE_KEY_ALIAS")
+            keyPassword = System.getenv("RELEASE_KEY_PASSWORD")
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
@@ -23,6 +34,7 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
             )
+            signingConfig = signingConfigs.findByName("release") ?: signingConfigs.getByName("debug")
         }
         debug {
             isMinifyEnabled = false

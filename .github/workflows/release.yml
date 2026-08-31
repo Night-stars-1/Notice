@@ -1,0 +1,136 @@
+name: Release APK
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      # secrets 不能直接用在 step 的 if 里，先折算成布尔环境变量
+      HAS_KEYSTORE: ${{ secrets.KEYSTORE_BASE64 != '' }}
+      # 配置 AI_BASE_URL + AI_API_KEY（可选 AI_MODEL）后用 OpenAI 兼容接口生成更新说明，否则退回提交列表
+      HAS_AI: ${{ secrets.AI_API_KEY != '' && secrets.AI_BASE_URL != '' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # 生成更新日志需要完整历史和 tag
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Unit tests
+        run: ./gradlew :app:testDebugUnitTest --no-daemon
+
+      # 配置了 KEYSTORE_BASE64 / KEYSTORE_PASSWORD / KEY_ALIAS / KEY_PASSWORD 四个仓库 secret 时用正式签名，
+      # 否则退回 debug 签名（仍可安装，但不能覆盖安装正式签名的版本）。
+      - name: Decode signing keystore
+        if: env.HAS_KEYSTORE == 'true'
+        run: |
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > "$RUNNER_TEMP/release.jks"
+          echo "RELEASE_KEYSTORE_PATH=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
+
+      - name: Build release APK
+        env:
+          RELEASE_KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          RELEASE_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          RELEASE_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: ./gradlew :app:assembleRelease --no-daemon
+
+      - name: Rename APK
+        id: apk
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ] && TAG="manual-$(git rev-parse --short HEAD)"
+          OUT="Notice-${TAG}.apk"
+          cp app/build/outputs/apk/release/app-release.apk "$OUT"
+          echo "path=$OUT" >> "$GITHUB_OUTPUT"
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.apk.outputs.path }}
+          path: ${{ steps.apk.outputs.path }}
+
+      # 更新日志：取上一个 tag 到当前 tag 的提交；配置了 OpenAI 兼容 API 时由模型整理成面向用户的说明，
+      # 否则直接列出提交。追加到 Release 说明后面，保留手写部分，重跑不重复。
+      - name: Generate changelog
+        if: ${{ github.event_name == 'release' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          AI_BASE_URL: ${{ secrets.AI_BASE_URL }}
+          AI_API_KEY: ${{ secrets.AI_API_KEY }}
+          AI_MODEL: ${{ secrets.AI_MODEL || 'gpt-4o-mini' }}
+        run: |
+          set -u
+          TAG="$GITHUB_REF_NAME"
+          PREV="$(git describe --tags --abbrev=0 "$TAG^" 2>/dev/null || true)"
+          RANGE="${PREV:+$PREV..}$TAG"
+          MARK="## 更新内容"
+          git log --no-merges --pretty=format:'- %s (%h)' "$RANGE" > commits.md
+          git log --no-merges --pretty=format:'%n### %h %s%n%b' --stat=120 "$RANGE" > commits-detail.txt
+          if [ -n "$PREV" ]; then
+            COMPARE="https://github.com/$GITHUB_REPOSITORY/compare/$PREV...$TAG"
+          else
+            COMPARE="https://github.com/$GITHUB_REPOSITORY/commits/$TAG"
+          fi
+
+          AI_NOTES=""
+          if [ "$HAS_AI" = "true" ] && [ -s commits-detail.txt ]; then
+            SYSTEM='你是 Android 应用 Notice（LSPosed 通知过滤模块：关键词规则 + 离线 AI 骚扰识别 + 端侧微调）的发布说明撰写者。根据给出的 git 提交记录写一份面向普通用户的中文更新说明，要求：用 Markdown；按「✨ 新功能」「🔧 改进」「🐛 修复」分组，没有内容的组省略；每条一句话，说用户能感知到的变化，不要出现类名、函数名、binder、正则、ICU 之类实现细节；不要编造提交里没有的内容；不要写标题和开场白，直接输出分组列表。'
+            USER_MSG="$(printf '版本：%s\n提交记录（含改动文件统计）：\n%s' "$TAG" "$(head -c 60000 commits-detail.txt)")"
+            PAYLOAD="$(jq -n --arg model "$AI_MODEL" --arg sys "$SYSTEM" --arg user "$USER_MSG" \
+              '{model: $model, temperature: 0.3, messages: [{role: "system", content: $sys}, {role: "user", content: $user}]}')"
+            RESP="$(curl -sS --max-time 180 "${AI_BASE_URL%/}/chat/completions" \
+              -H "Authorization: Bearer $AI_API_KEY" -H "Content-Type: application/json" \
+              -d "$PAYLOAD" || true)"
+            AI_NOTES="$(printf '%s' "$RESP" | jq -r '.choices[0].message.content // empty' 2>/dev/null || true)"
+            if [ -z "$AI_NOTES" ]; then
+              echo "::warning::AI 生成更新说明失败，退回提交列表。响应：$(printf '%s' "$RESP" | head -c 500)"
+            fi
+          fi
+
+          {
+            echo "$MARK"
+            echo
+            if [ -n "$AI_NOTES" ]; then
+              printf '%s\n\n' "$AI_NOTES"
+              echo "> 以上由 AI 根据提交记录整理。"
+              echo
+              echo "<details><summary>提交列表</summary>"
+              echo
+              cat commits.md
+              echo
+              echo "</details>"
+            else
+              cat commits.md
+            fi
+            echo
+            echo
+            echo "**完整变更**：$COMPARE"
+          } > changelog.md
+
+          gh release view "$TAG" --json body -q .body > existing.md || true
+          awk -v mark="$MARK" '$0 == mark { exit } { print }' existing.md | sed -e :a -e '/^\n*$/{$d;N;ba' -e '}' > handwritten.md
+          { if [ -s handwritten.md ]; then cat handwritten.md; echo; echo; fi; cat changelog.md; } > notes.md
+          gh release edit "$TAG" --notes-file notes.md
+
+      - name: Attach APK to the release
+        if: ${{ github.event_name == 'release' }}
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ steps.apk.outputs.path }}
