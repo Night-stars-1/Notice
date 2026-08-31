@@ -1,0 +1,2 @@
+-keep class moe.notice.filter.xposed.HookEntry { *; }
+-keep class moe.notice.filter.ModuleStatus { *; }
