@@ -113,16 +113,32 @@ jobs:
 
           AI_NOTES=""
           if [ "$HAS_AI" = "true" ] && [ -s commits-detail.txt ]; then
-            SYSTEM='你是 Android 应用 Notice（LSPosed 通知过滤模块：关键词规则 + 离线 AI 骚扰识别 + 端侧微调）的发布说明撰写者。根据给出的 git 提交记录写一份面向普通用户的中文更新说明，要求：用 Markdown；按「✨ 新功能」「🔧 改进」「🐛 修复」分组，没有内容的组省略；每条一句话，说用户能感知到的变化，不要出现类名、函数名、binder、正则、ICU 之类实现细节；不要编造提交里没有的内容；不要写标题和开场白，直接输出分组列表。'
-            USER_MSG="$(printf '版本：%s\n提交记录（含改动文件统计）：\n%s' "$TAG" "$(head -c 60000 commits-detail.txt)")"
-            PAYLOAD="$(jq -n --arg model "$AI_MODEL" --arg sys "$SYSTEM" --arg user "$USER_MSG" \
-              '{model: $model, temperature: 0.3, messages: [{role: "system", content: $sys}, {role: "user", content: $user}]}')"
-            RESP="$(curl -sS --max-time 180 "${AI_BASE_URL%/}/chat/completions" \
-              -H "Authorization: Bearer $AI_API_KEY" -H "Content-Type: application/json" \
-              -d "$PAYLOAD" || true)"
-            AI_NOTES="$(printf '%s' "$RESP" | jq -r '.choices[0].message.content // empty' 2>/dev/null || true)"
+            SYSTEM='你是 Android 应用 Notice（LSPosed 通知过滤模块：关键词规则 + 离线 AI 骚扰识别 + 端侧微调）的发布说明撰写者。根据给出的 git 提交记录写一份面向普通用户的更新说明。硬性要求：全文必须使用简体中文（提交记录是英文，需要翻译成中文，不要照抄英文句子）；用 Markdown；按「✨ 新功能」「🔧 改进」「🐛 修复」分组，没有内容的组省略；每条一句话，说用户能感知到的变化，不要出现类名、函数名、binder、正则、ICU 之类实现细节；不要编造提交里没有的内容；不要写标题和开场白，直接输出分组列表。'
+            USER_MSG="$(printf '版本：%s\n请用简体中文撰写更新说明。\n提交记录（含改动文件统计）：\n%s' "$TAG" "$(head -c 60000 commits-detail.txt)")"
+            ask_ai() {
+              local extra_sys="$1"
+              local payload resp
+              payload="$(jq -n --arg model "$AI_MODEL" --arg sys "$SYSTEM$extra_sys" --arg user "$USER_MSG" \
+                '{model: $model, temperature: 0.3, messages: [{role: "system", content: $sys}, {role: "user", content: $user}]}')"
+              resp="$(curl -sS --max-time 180 "${AI_BASE_URL%/}/chat/completions" \
+                -H "Authorization: Bearer $AI_API_KEY" -H "Content-Type: application/json" \
+                -d "$payload" || true)"
+              LAST_RESP="$resp"
+              printf '%s' "$resp" | jq -r '.choices[0].message.content // empty' 2>/dev/null || true
+            }
+            # 中文字符太少视为没按要求输出：换更强的指令重试一次
+            cjk_count() { printf '%s' "$1" | python3 -c 'import re,sys; print(len(re.findall(r"[\u4e00-\u9fff]", sys.stdin.read())))'; }
+            AI_NOTES="$(ask_ai '')"
+            if [ -n "$AI_NOTES" ] && [ "$(cjk_count "$AI_NOTES")" -lt 10 ]; then
+              echo "::notice::AI 输出不是中文，重试一次。"
+              AI_NOTES="$(ask_ai ' 注意：你上一次的输出不是中文，这次必须逐条翻译成简体中文，禁止出现英文句子。')"
+            fi
+            if [ -n "$AI_NOTES" ] && [ "$(cjk_count "$AI_NOTES")" -lt 10 ]; then
+              echo "::warning::AI 两次都未输出中文，退回提交列表。"
+              AI_NOTES=""
+            fi
             if [ -z "$AI_NOTES" ]; then
-              echo "::warning::AI 生成更新说明失败，退回提交列表。响应：$(printf '%s' "$RESP" | head -c 500)"
+              echo "::warning::AI 生成更新说明失败，退回提交列表。响应：$(printf '%s' "${LAST_RESP:-}" | head -c 500)"
             fi
           fi
 
