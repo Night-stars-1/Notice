@@ -43,11 +43,13 @@ internal class BlockedInbox {
         } catch (t: Throwable) {
             Xp.log("package context failed", t)
         }
-        val filter = IntentFilter(ACTION_UNDO)
+        val filter = IntentFilter(ACTION_UNDO).apply { addAction(ACTION_DISMISS) }
         val receiver = object : BroadcastReceiver() {
             override fun onReceive(c: Context?, intent: Intent?) {
-                val key = intent?.getStringExtra(EXTRA_KEY) ?: return
-                undo(key)
+                when (intent?.action) {
+                    ACTION_DISMISS -> dismissAll()
+                    ACTION_UNDO -> intent.getStringExtra(EXTRA_KEY)?.let { undo(it) }
+                }
             }
         }
         try {
@@ -98,6 +100,11 @@ internal class BlockedInbox {
             }
         }
         publish()
+    }
+
+    /** 用户从通知栏清除了收件箱通知：清空累积的条目，下次拦截从零开始计数。 */
+    fun dismissAll() {
+        synchronized(lock) { items.clear() }
     }
 
     fun undo(key: String) {
@@ -172,6 +179,7 @@ internal class BlockedInbox {
             .setCustomContentView(collapsed)
             .setCustomBigContentView(expanded)
             .setContentIntent(openLogsIntent(appCtx))
+            .setDeleteIntent(dismissIntent(sysCtx))
             .setAutoCancel(false)
             .setOnlyAlertOnce(true)
             .setOngoing(false)
@@ -269,6 +277,12 @@ internal class BlockedInbox {
         return PendingIntent.getBroadcast(ctx, key.hashCode(), intent, flags)
     }
 
+    private fun dismissIntent(ctx: Context): PendingIntent {
+        val intent = Intent(ACTION_DISMISS)
+        val flags = PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        return PendingIntent.getBroadcast(ctx, ID, intent, flags)
+    }
+
     private fun openLogsIntent(appCtx: Context): PendingIntent {
         val intent = Intent().setClassName(
             BuildConfig.APPLICATION_ID,
@@ -346,6 +360,7 @@ internal class BlockedInbox {
         const val TAG = "blocked"
         const val ID = 2001
         const val ACTION_UNDO = "moe.notice.filter.UNDO_BLOCKED"
+        const val ACTION_DISMISS = "moe.notice.filter.DISMISS_INBOX"
         const val EXTRA_KEY = "key"
         const val MAX_ITEMS = 20
         const val MAX_ROWS = 4
