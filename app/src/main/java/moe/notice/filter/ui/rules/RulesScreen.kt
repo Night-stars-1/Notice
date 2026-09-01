@@ -28,7 +28,6 @@ import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.NotificationsActive
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.FilterAltOff
@@ -66,7 +65,6 @@ import moe.notice.filter.domain.FilterConfig
 import moe.notice.filter.domain.MatchMode
 import moe.notice.filter.domain.RuleAction
 import moe.notice.filter.ui.components.SectionHeader
-import moe.notice.filter.ui.components.SettingSwitchRow
 import moe.notice.filter.ui.theme.groupedListShape
 
 @Composable
@@ -79,7 +77,6 @@ fun RulesScreen(
     onEditRule: (BlockRule) -> Unit,
     onDeleteRule: (String) -> Unit,
     onReorderRules: (List<String>) -> Unit,
-    onInboxEnabledChange: (Boolean) -> Unit,
     contentPadding: PaddingValues,
 ) {
     var pendingDelete by remember { mutableStateOf<BlockRule?>(null) }
@@ -133,16 +130,6 @@ fun RulesScreen(
                 xposedApi = xposedApi,
             )
             Spacer(Modifier.height(6.dp))
-        }
-        item {
-            SettingSwitchRow(
-                icon = Icons.Outlined.NotificationsActive,
-                title = stringResource(R.string.inbox_switch),
-                supporting = stringResource(R.string.inbox_switch_hint),
-                checked = config.inboxEnabled,
-                shape = groupedListShape(0, 1),
-                onCheckedChange = onInboxEnabledChange,
-            )
         }
         item {
             SectionHeader(

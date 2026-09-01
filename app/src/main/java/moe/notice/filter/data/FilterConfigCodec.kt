@@ -21,7 +21,6 @@ object FilterConfigCodec {
         root.put("spamDeltaVersion", config.spamDeltaVersion)
         root.put("debugLogEnabled", config.debugLogEnabled)
         root.put("judgeLogEnabled", config.judgeLogEnabled)
-        root.put("inboxEnabled", config.inboxEnabled)
         val rules = JSONArray()
         for (rule in config.rules) {
             rules.put(encodeRule(rule))
@@ -49,7 +48,6 @@ object FilterConfigCodec {
             spamDeltaVersion = root.optLong("spamDeltaVersion", 0L),
             debugLogEnabled = root.optBoolean("debugLogEnabled", true),
             judgeLogEnabled = root.optBoolean("judgeLogEnabled", false),
-            inboxEnabled = root.optBoolean("inboxEnabled", true),
         )
     }
 

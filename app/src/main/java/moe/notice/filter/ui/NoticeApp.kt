@@ -322,7 +322,6 @@ fun NoticeApp(
                         },
                         onDeleteRule = viewModel::deleteRule,
                         onReorderRules = viewModel::reorderRules,
-                        onInboxEnabledChange = viewModel::setInboxEnabled,
                         onClearLogs = viewModel::clearLogs,
                         snackbar = snackbar,
                     )
@@ -368,7 +367,6 @@ private fun HomeScaffold(
     onEditRule: (BlockRule) -> Unit,
     onDeleteRule: (String) -> Unit,
     onReorderRules: (List<String>) -> Unit,
-    onInboxEnabledChange: (Boolean) -> Unit,
     onClearLogs: () -> Unit,
     snackbar: SnackbarHostState,
 ) {
@@ -600,7 +598,6 @@ private fun HomeScaffold(
                     onEditRule = onEditRule,
                     onDeleteRule = onDeleteRule,
                     onReorderRules = onReorderRules,
-                    onInboxEnabledChange = onInboxEnabledChange,
                     contentPadding = padding,
                 )
                 1 -> LogsScreen(

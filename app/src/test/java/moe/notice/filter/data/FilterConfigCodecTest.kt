@@ -43,9 +43,6 @@ class FilterConfigCodecTest {
         val judgeOn = FilterConfigCodec.decode(FilterConfigCodec.encode(FilterConfig(judgeLogEnabled = true)))
         assertTrue(judgeOn.judgeLogEnabled)
         assertFalse(FilterConfigCodec.decode("""{"enabled":true}""").judgeLogEnabled)
-        val inboxOff = FilterConfigCodec.decode(FilterConfigCodec.encode(FilterConfig(inboxEnabled = false)))
-        assertFalse(inboxOff.inboxEnabled)
-        assertTrue(FilterConfigCodec.decode("""{"enabled":true}""").inboxEnabled)
     }
 
     @Test

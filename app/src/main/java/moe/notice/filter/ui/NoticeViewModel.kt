@@ -167,10 +167,6 @@ class NoticeViewModel(application: Application) : AndroidViewModel(application) 
         report(rules.setJudgeLogEnabled(enabled))
     }
 
-    fun setInboxEnabled(enabled: Boolean) {
-        report(rules.setInboxEnabled(enabled))
-    }
-
     fun labelFor(packageName: String): String {
         val cached = _apps.value.firstOrNull { it.packageName == packageName }
         if (cached != null) return cached.label

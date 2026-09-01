@@ -69,8 +69,6 @@ class RuleRepository(context: Context) {
 
     fun setJudgeLogEnabled(enabled: Boolean): Boolean = save(_config.value.copy(judgeLogEnabled = enabled))
 
-    fun setInboxEnabled(enabled: Boolean): Boolean = save(_config.value.copy(inboxEnabled = enabled))
-
     fun upsert(rule: BlockRule): Boolean {
         val current = _config.value
         val rules = current.rules.toMutableList()

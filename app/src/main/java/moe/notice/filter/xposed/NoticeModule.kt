@@ -31,10 +31,8 @@ class NoticeModule : XposedModule() {
                 Xp.log("enqueueNotificationInternal not found")
                 return
             }
+            val filter = KeywordFilter().also { it.attach(this) }
             val inbox = BlockedInbox()
-            val filter = KeywordFilter()
-            filter.onConfigChanged = { cfg -> if (!cfg.inboxEnabled) inbox.disable() }
-            filter.attach(this)
             hook(target).intercept { chain ->
                 val service = chain.thisObject
                 val args = chain.args.toTypedArray()
@@ -51,12 +49,10 @@ class NoticeModule : XposedModule() {
                     false
                 }
                 if (!block) return@intercept chain.proceed()
-                if (filter.inboxEnabled) {
-                    try {
-                        inbox.onBlocked(chain.executable as Method, service, args)
-                    } catch (t: Throwable) {
-                        Xp.log("inbox update failed", t)
-                    }
+                try {
+                    inbox.onBlocked(chain.executable as Method, service, args)
+                } catch (t: Throwable) {
+                    Xp.log("inbox update failed", t)
                 }
                 skipResult(target)
             }
