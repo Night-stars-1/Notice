@@ -44,7 +44,7 @@
     <string name="inbox_switch">显示拦截通知</string>
     <string name="inbox_switch_hint">拦截后在通知栏汇总显示被拦下的通知，可从中撤销</string>
     <string name="section_rules">规则</string>
-    <string name="enable_filter">启用关键词拦截</string>
+    <string name="enable_filter">启用模块</string>
     <string name="enable_log">记录通知</string>
     <string name="enable_spam_model">智能识别骚扰</string>
     <string name="enable_spam_model_hint">规则未命中时，用离线模型识别推广、诈骗等骚扰通知</string>
