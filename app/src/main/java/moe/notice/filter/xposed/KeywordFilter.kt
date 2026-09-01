@@ -2,10 +2,7 @@ package moe.notice.filter.xposed
 
 import android.content.ContentValues
 import android.app.Notification
-import android.content.BroadcastReceiver
 import android.content.Context
-import android.content.Intent
-import android.content.IntentFilter
 import android.content.SharedPreferences
 import android.os.Build
 import android.os.ParcelFileDescriptor
@@ -30,7 +27,6 @@ internal class KeywordFilter {
     @Volatile private var model: SpamModel? = null
     @Volatile private var loadedDeltaVersion = -1L
     private var api: XposedInterface? = null
-    private var reloadReceiverRegistered = false
     private val sink = LogSink()
     // 强引用持有：SharedPreferences 的实现以弱引用保存监听器。
     private var listener: SharedPreferences.OnSharedPreferenceChangeListener? = null
@@ -43,15 +39,18 @@ internal class KeywordFilter {
             config = FilterConfigCodec.fromPrefs(prefs)
             logConfig("remote")
             refreshModel()
-            val l = SharedPreferences.OnSharedPreferenceChangeListener { p, _ ->
-                config = FilterConfigCodec.fromPrefs(p)
+            val l = SharedPreferences.OnSharedPreferenceChangeListener { p, key ->
+                val fromPrefs = FilterConfigCodec.fromPrefs(p)
+                // 不去重的诊断日志：确认回调是否触发，以及回调时读到的是不是新值
+                Xp.log("远程偏好回调触发 key=$key delta=${fromPrefs.spamDeltaVersion} rules=${fromPrefs.rules.size}")
+                config = fromPrefs
                 logConfig("remote update")
                 refreshModel()
             }
             listener = l
             prefs.registerOnSharedPreferenceChangeListener(l)
         } catch (t: Throwable) {
-            Xp.log("remote preferences unavailable, filter stays empty", t)
+            Xp.log("远程偏好不可用，过滤配置保持为空", t)
         }
     }
 
@@ -63,7 +62,7 @@ internal class KeywordFilter {
         if (version == loadedDeltaVersion && model != null) return
         val base = SpamModel.bundled()
         if (base == null) {
-            Xp.log("spam model missing from resources")
+            Xp.log("资源里没有内置模型")
             model = null
             loadedDeltaVersion = version
             return
@@ -76,50 +75,17 @@ internal class KeywordFilter {
                     ParcelFileDescriptor.AutoCloseInputStream(pfd).use { input ->
                         val delta = SpamDelta.decode(input)
                         next = base.withDelta(delta)
-                        Xp.log("spam delta v$version loaded: ${delta.indices.size} weights")
+                        Xp.log("已加载微调量 v$version：${delta.indices.size} 个权重")
                     }
                 } else {
-                    Xp.log("spam delta v$version not found, using bundled model")
+                    Xp.log("未找到微调量 v$version，使用内置模型")
                 }
             } catch (t: Throwable) {
-                Xp.log("spam delta load failed, using bundled model", t)
+                Xp.log("微调量加载失败，使用内置模型", t)
             }
         }
         model = next
         loadedDeltaVersion = version
-    }
-
-    /** 重新从框架拉取远程偏好；由应用保存配置后的广播触发。 */
-    fun reload(source: String) {
-        val a = api ?: return
-        try {
-            config = FilterConfigCodec.fromPrefs(a.getRemotePreferences(FilterPrefs.NAME))
-            logConfig(source)
-            refreshModel()
-        } catch (t: Throwable) {
-            Xp.log("reload config failed", t)
-        }
-    }
-
-    private fun ensureReloadReceiver(ctx: Context) {
-        if (reloadReceiverRegistered) return
-        reloadReceiverRegistered = true
-        val receiver = object : BroadcastReceiver() {
-            override fun onReceive(c: Context?, intent: Intent?) {
-                reload("broadcast")
-            }
-        }
-        try {
-            val filter = IntentFilter(FilterPrefs.ACTION_RELOAD)
-            if (Build.VERSION.SDK_INT >= 33) {
-                ctx.registerReceiver(receiver, filter, Context.RECEIVER_EXPORTED)
-            } else {
-                @Suppress("DEPRECATION")
-                ctx.registerReceiver(receiver, filter)
-            }
-        } catch (t: Throwable) {
-            Xp.log("register reload receiver failed", t)
-        }
     }
 
     /** 一次判定的结果：是否拦截，以及拦截后是否放入收件箱通知（规则可选择静默拦截）。 */
@@ -130,10 +96,7 @@ internal class KeywordFilter {
     }
 
     fun shouldBlock(args: Array<Any?>, context: Context?): Outcome {
-        if (context != null) {
-            DebugLog.attach(context, sink)
-            ensureReloadReceiver(context)
-        }
+        if (context != null) DebugLog.attach(context, sink)
 
         var pkg: String? = null
         var notification: Notification? = null
@@ -173,7 +136,7 @@ internal class KeywordFilter {
                 if (model == null) refreshModel()
                 model?.let { SpamJudge.judge(it, cfg.spamThreshold, extracted.combined) }
             } catch (t: Throwable) {
-                Xp.log("spam model failed", t)
+                Xp.log("骚扰识别打分失败", t)
                 null
             }
             if (hit == null && verdict?.block == true) hit = SpamJudge.rule
@@ -192,7 +155,7 @@ internal class KeywordFilter {
                     log(context, resolved, extracted, hit != null, shownRule, details)
                 }
             } catch (t: Throwable) {
-                Xp.log("log failed", t)
+                Xp.log("记录通知日志失败", t)
             }
         }
         return Outcome(block = hit != null, notify = hit?.notify ?: false)
@@ -259,7 +222,7 @@ internal class KeywordFilter {
         try {
             sink.submit(ctx, values)
         } catch (t: Throwable) {
-            Xp.log("log schedule failed", t)
+            Xp.log("日志投递排队失败", t)
         }
     }
 
@@ -268,7 +231,7 @@ internal class KeywordFilter {
         val summary = "enabled=${config.enabled} log=${config.logEnabled} spam=${config.spamEnabled}@${config.spamThreshold} delta=${config.spamDeltaVersion} excluded=${config.spamExcludedPackages.size} rules=${config.rules.size} $source"
         if (summary == lastConfigSummary) return
         lastConfigSummary = summary
-        Xp.log("config $summary")
+        Xp.log("配置 $summary")
     }
 
     private fun isCritical(notification: Notification): Boolean {

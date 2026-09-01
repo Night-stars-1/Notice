@@ -60,6 +60,31 @@ def download() -> None:
         urllib.request.urlretrieve(url, path)
 
 
+def load_extra(path: Path) -> tuple[list[str], np.ndarray]:
+    """读取真实通知 CSV（列：判定 / 通知标题 / 通知信息 …）。
+
+    垃圾广告、骚扰 -> 1，正常 -> 0；文本 = 标题 + 换行 + 正文，与 App 端打分 / 微调用的文本一致。
+    同一条文本多次出现只保留一次。
+    """
+    texts, labels, seen = [], [], set()
+    with open(path, encoding="utf-8-sig", newline="") as f:
+        for row in csv.DictReader(f):
+            verdict = (row.get("判定") or "").strip()
+            if verdict == "正常":
+                y = 0
+            elif verdict in ("垃圾广告", "骚扰"):
+                y = 1
+            else:
+                continue
+            text = "\n".join(t for t in ((row.get("通知标题") or "").strip(), (row.get("通知信息") or "").strip()) if t)
+            if not text or text in seen:
+                continue
+            seen.add(text)
+            texts.append(text)
+            labels.append(y)
+    return texts, np.asarray(labels, dtype=np.int8)
+
+
 def load() -> tuple[list[str], np.ndarray]:
     texts, labels = [], []
     with open(DATA_PATH, encoding="utf-8", errors="replace") as f:
@@ -106,26 +131,64 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--C", type=float, default=1.0)
     ap.add_argument("--limit", type=int, default=0, help="use only the first N rows (smoke test)")
+    ap.add_argument("--extra", action="append", default=[], help="真实通知 CSV（列：判定, 理由, 出现次数, App 名称, 通知标题, 通知信息, …），可重复")
+    ap.add_argument("--extra-weight", type=float, default=3.0, help="真实通知样本的权重")
+    ap.add_argument("--no-extra-train", action="store_true", help="只用真实通知做评估，不参与训练（对照基线）")
+    ap.add_argument("--no-sms", action="store_true", help="不使用短信 / 英文语料，只用 --extra 的真实通知训练")
+    ap.add_argument("--sms-ham-only", action="store_true", help="短信 / 英文语料只保留正常样本（作为额外负样本，避免模型先验偏向骚扰）")
     args = ap.parse_args()
 
     download()
     texts, y = load()
+    if args.sms_ham_only:
+        keep = [i for i, v in enumerate(y) if v == 0]
+        texts, y = [texts[i] for i in keep], y[keep]
     if args.limit:
         texts, y = texts[: args.limit], y[: args.limit]
     print(f"rows={len(texts)} spam={int(y.sum())} ham={int((y == 0).sum())}", file=sys.stderr)
 
     x = vectorise(texts)
-    x_tr, x_te, y_tr, y_te = train_test_split(x, y, test_size=0.2, random_state=42, stratify=y)
+    strat = y if len(set(y.tolist())) > 1 else None
+    x_tr, x_te, y_tr, y_te = train_test_split(x, y, test_size=0.2, random_state=42, stratify=strat)
+    w_tr = np.ones(x_tr.shape[0], dtype=np.float32)
+    if args.no_sms:
+        x_tr, y_tr, w_tr = x_tr[:0], y_tr[:0], w_tr[:0]
+
+    # 真实通知语料：单独切 20% 留出集衡量真实效果，其余按权重加入训练
+    ex_te = None
+    if args.extra:
+        ex_texts, ex_y = [], []
+        for path in args.extra:
+            t, yy = load_extra(Path(path))
+            ex_texts += t
+            ex_y.append(yy)
+        ex_y = np.concatenate(ex_y)
+        print(f"extra rows={len(ex_texts)} spam={int(ex_y.sum())} ham={int((ex_y == 0).sum())}", file=sys.stderr)
+        ex_x = vectorise(ex_texts)
+        ex_x_tr, ex_x_te, ex_y_tr, ex_y_te = train_test_split(ex_x, ex_y, test_size=0.2, random_state=42, stratify=ex_y)
+        ex_te = (ex_x_te, ex_y_te)
+        if not args.no_extra_train:
+            from scipy.sparse import vstack
+            x_tr = vstack([x_tr, ex_x_tr]).tocsr()
+            y_tr = np.concatenate([y_tr, ex_y_tr])
+            w_tr = np.concatenate([w_tr, np.full(ex_x_tr.shape[0], args.extra_weight, dtype=np.float32)])
 
     clf = LogisticRegression(C=args.C, solver="liblinear", max_iter=1000)
-    clf.fit(x_tr, y_tr)
+    clf.fit(x_tr, y_tr, sample_weight=w_tr)
 
+    def report(name: str, xx, yy) -> None:
+        pp = clf.predict_proba(xx)[:, 1]
+        for thr in (0.5, 0.8, 0.9, 0.95):
+            pred = (pp >= thr).astype(int)
+            print(f"\n== [{name}] threshold {thr} ==", file=sys.stderr)
+            print(confusion_matrix(yy, pred), file=sys.stderr)
+            print(classification_report(yy, pred, digits=4), file=sys.stderr)
+
+    if len(set(y_te.tolist())) > 1:
+        report("sms holdout", x_te, y_te)
+    if ex_te is not None:
+        report("real notifications holdout", *ex_te)
     p = clf.predict_proba(x_te)[:, 1]
-    for thr in (0.5, 0.8, 0.9, 0.95):
-        pred = (p >= thr).astype(int)
-        print(f"\n== threshold {thr} ==", file=sys.stderr)
-        print(confusion_matrix(y_te, pred), file=sys.stderr)
-        print(classification_report(y_te, pred, digits=4), file=sys.stderr)
 
     w = clf.coef_.reshape(-1).astype(np.float32)
     b = float(clf.intercept_[0])

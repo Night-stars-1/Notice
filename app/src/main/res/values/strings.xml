@@ -150,6 +150,7 @@
     <string name="log_detail_status">状态</string>
     <string name="log_detail_rule">匹配规则</string>
     <string name="log_detail_spam_score">骚扰分数</string>
+    <string name="log_rescore">用当前模型重新评分</string>
     <string name="log_detail_reasons">主要依据</string>
     <string name="log_spam_protected">%1$s（验证码保护，已放行）</string>
     <string name="log_detail_time">时间</string>

@@ -20,6 +20,12 @@ data class SpamLabel(
 /** 用户为已记录通知提供的垃圾/正常标注；即设备端微调的训练集。 */
 class SpamLabelRepository(context: Context) {
     private val file = File(context.applicationContext.filesDir, FILE_NAME)
+    private val prefs = context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+
+    /** 上次成功下发的微调量所基于的内置模型指纹；0 表示尚未微调。 */
+    var tunedModelFingerprint: Long
+        get() = prefs.getLong(KEY_MODEL_FINGERPRINT, 0L)
+        set(value) = prefs.edit().putLong(KEY_MODEL_FINGERPRINT, value).apply()
     private val lock = Any()
     private val _labels = MutableStateFlow(readLocked())
     val labels: StateFlow<Map<String, SpamLabel>> = _labels.asStateFlow()
@@ -90,6 +96,8 @@ class SpamLabelRepository(context: Context) {
 
     companion object {
         private const val FILE_NAME = "spam_labels.json"
+        private const val PREFS_NAME = "spam_tuning"
+        private const val KEY_MODEL_FINGERPRINT = "model_fingerprint"
 
         /** 近似 system_server 用于评分的合并文本（标题 + 正文）。 */
         fun trainingText(record: NotificationRecord): String =

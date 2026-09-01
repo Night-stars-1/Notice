@@ -10,7 +10,7 @@ class NoticeModule : XposedModule() {
     override fun onModuleLoaded(param: XposedModuleInterface.ModuleLoadedParam) {
         Xp.api = this
         Xp.log(
-            "loaded in ${param.processName}: $frameworkName $frameworkVersion ($frameworkVersionCode) api=$apiVersion",
+            "已加载到进程 ${param.processName}：$frameworkName $frameworkVersion ($frameworkVersionCode) api=$apiVersion",
         )
     }
 
@@ -28,7 +28,7 @@ class NoticeModule : XposedModule() {
             )
             val target = longestEnqueue(nms)
             if (target == null) {
-                Xp.log("enqueueNotificationInternal not found")
+                Xp.log("未找到 enqueueNotificationInternal 方法")
                 return
             }
             val filter = KeywordFilter().also { it.attach(this) }
@@ -40,12 +40,12 @@ class NoticeModule : XposedModule() {
                 try {
                     inbox.attach(service, ctx)
                 } catch (t: Throwable) {
-                    Xp.log("inbox attach failed", t)
+                    Xp.log("拦截收件箱初始化失败", t)
                 }
                 val outcome = try {
                     filter.shouldBlock(args, ctx)
                 } catch (t: Throwable) {
-                    Xp.log("filter failed", t)
+                    Xp.log("过滤判定失败", t)
                     KeywordFilter.Outcome.PASS
                 }
                 if (!outcome.block) return@intercept chain.proceed()
@@ -53,16 +53,16 @@ class NoticeModule : XposedModule() {
                     try {
                         inbox.onBlocked(chain.executable as Method, service, args)
                     } catch (t: Throwable) {
-                        Xp.log("inbox update failed", t)
+                        Xp.log("更新拦截收件箱失败", t)
                     }
                 }
                 skipResult(target)
             }
             Xp.log(
-                "NMS hooked ${target.parameterCount}-arg enqueueNotificationInternal return=${target.returnType.name}",
+                "已 hook enqueueNotificationInternal（${target.parameterCount} 参数，返回 ${target.returnType.name}）",
             )
         } catch (t: Throwable) {
-            Xp.log("hook NMS failed", t)
+            Xp.log("hook NotificationManagerService 失败", t)
         }
     }
 

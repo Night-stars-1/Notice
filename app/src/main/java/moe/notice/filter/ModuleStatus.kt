@@ -34,7 +34,7 @@ object ModuleStatus {
         return try {
             current.getRemotePreferences(FilterPrefs.NAME)
         } catch (t: Throwable) {
-            Log.w("Notice", "remote preferences unavailable", t)
+            Log.w("Notice", "远程偏好不可用", t)
             null
         }
     }
@@ -45,7 +45,7 @@ object ModuleStatus {
         return try {
             current.openRemoteFile(name)
         } catch (t: Throwable) {
-            Log.w("Notice", "remote file unavailable: $name", t)
+            Log.w("Notice", "远程文件不可用：$name", t)
             null
         }
     }

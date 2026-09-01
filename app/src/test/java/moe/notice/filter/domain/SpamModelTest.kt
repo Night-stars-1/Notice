@@ -32,6 +32,22 @@ class SpamModelTest {
         assertEquals(sigmoid(0.5f), m.score(""), 1e-6f)
     }
 
+    @Test
+    fun fingerprintFollowsFileContent() {
+        fun bytes(bias: Float) = ByteArrayOutputStream().also { bos ->
+            DataOutputStream(bos).apply {
+                write("NSPM".toByteArray(Charsets.US_ASCII)); writeInt(1); writeInt(8); writeInt(1); writeInt(1)
+                writeFloat(bias); writeFloat(0.01f); write(ByteArray(8))
+            }
+        }.toByteArray()
+        val a = SpamModel.load(bytes(0.5f).inputStream())
+        val b = SpamModel.load(bytes(0.5f).inputStream())
+        val c = SpamModel.load(bytes(0.25f).inputStream())
+        assertEquals(a.fingerprint, b.fingerprint)
+        assertTrue(a.fingerprint != c.fingerprint)
+        assertTrue(a.fingerprint != 0L)
+    }
+
     @Test(expected = IllegalArgumentException::class)
     fun rejectsBadMagic() {
         SpamModel.load(ByteArray(28).inputStream())

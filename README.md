@@ -67,17 +67,18 @@
 模型是一个字符 n-gram（1–3 gram）哈希特征上的 Logistic Regression：
 
 - 特征：归一化（小写、去空白、去数字、去字母 `x`）后的 UTF-16 字符 n-gram，用 FNV-1a 哈希到 2^18 个桶，L2 归一化。Python 训练侧和 Kotlin 推理侧的实现逐位一致，由单元测试用 `parity.json` 校验。
-- 训练数据：公开的中文垃圾短信数据集（约 80 万条）+ 英文 SMS Spam Collection（约 5.5k 条）。
-- 留出集表现：阈值 0.90 时 precision ≈ 0.9999，recall ≈ 0.91。
+- 训练数据：约 8.8k 条带人工判定的**真实 App 通知**（导入的 CSV，个人数据，不在仓库中，样本权重 ×30）+ 公开中文短信语料中的 10 万条**正常**短信作为额外负样本（校准先验，避免把陌生文本一律往骚扰判）。
+- 真实通知留出集（20%）表现：阈值 0.80 时 precision ≈ 0.97 / recall ≈ 0.74；阈值 0.90 时 precision ≈ 0.98 / recall ≈ 0.67。
 - 权重 int8 量化，模型文件 `app/src/main/resources/model/spam_v1.bin`。
 
-已知局限：训练语料是短信而不是 App 通知，正常样本偏新闻语句，因此短问候（如「你好」）分数偏高、部分营销文案分数偏低；4 个字以内的文本不参与判定。端侧微调正是为了弥补这个分布差异。
+已知局限：训练数据来自一台设备上安装的应用，其它类型应用的通知可能覆盖不足；4 个字以内的文本不参与判定。端侧微调可以针对自己的通知继续修正。
 
 重新训练：
 
 ```bash
 cd ml
-uv run train.py          # 首次运行会下载数据集到 ml/data/
+uv run train.py --extra data/你的通知判定.csv --sms-ham-only --limit 100000 --extra-weight 30 --C 10   # 内置模型的训练参数
+uv run train.py                                                             # 仅用公开短信语料（会自动下载）
 uv run --group dev pytest -q
 ```
 

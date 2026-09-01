@@ -26,7 +26,7 @@ object SpamDeltaWriter {
             }
             true
         } catch (t: Throwable) {
-            Log.w("Notice", "spam delta write failed", t)
+            Log.w("Notice", "写入微调量文件失败", t)
             false
         }
     }

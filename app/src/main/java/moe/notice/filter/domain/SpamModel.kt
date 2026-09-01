@@ -16,6 +16,8 @@ class SpamModel(
     val ngramMax: Int,
     val bias: Float,
     val weights: FloatArray,
+    /** 模型文件内容的 CRC32；内置模型更新后会变化，用来判断微调量是否需要重新拟合。 */
+    val fingerprint: Long = 0L,
 ) {
     init {
         require(weights.size == buckets) { "weights ${weights.size} != buckets $buckets" }
@@ -52,7 +54,9 @@ class SpamModel(
         @Volatile private var bundledModel: SpamModel? = null
 
         fun load(input: InputStream): SpamModel {
-            val din = DataInputStream(input.buffered())
+            val bytes = input.readBytes()
+            val crc = java.util.zip.CRC32().also { it.update(bytes) }.value
+            val din = DataInputStream(bytes.inputStream())
             val magic = ByteArray(4)
             din.readFully(magic)
             require(magic.contentEquals(MAGIC)) { "bad magic" }
@@ -67,7 +71,7 @@ class SpamModel(
             val q = ByteArray(buckets)
             din.readFully(q)
             val weights = FloatArray(buckets) { q[it] * scale }
-            return SpamModel(buckets, ngramMin, ngramMax, bias, weights)
+            return SpamModel(buckets, ngramMin, ngramMax, bias, weights, fingerprint = crc)
         }
 
         /** 打包在 APK 中的模型，只加载一次；缺失或损坏时为 null。 */

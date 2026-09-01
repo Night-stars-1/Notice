@@ -34,6 +34,7 @@ import moe.notice.filter.domain.DarkMode
 import moe.notice.filter.domain.FilterConfig
 import moe.notice.filter.domain.NotificationRecord
 import moe.notice.filter.domain.SpamExplainer
+import moe.notice.filter.domain.SpamJudge
 import moe.notice.filter.domain.SpamModel
 import moe.notice.filter.domain.SpamTuner
 
@@ -72,11 +73,22 @@ class NoticeViewModel(application: Application) : AndroidViewModel(application) 
             _apps.value = catalog.load()
         }
         viewModelScope.launch(Dispatchers.IO) {
-            ModuleStatus.state.collect { rules.attachRemote(ModuleStatus.remotePrefs()) }
+            ModuleStatus.state.collect { status ->
+                rules.attachRemote(ModuleStatus.remotePrefs())
+                // 内置模型更新后（比如 App 升级），已有标注对应的微调量是针对旧模型学的：
+                // 模块服务连上、远程配置就绪后自动重新拟合一次。必须在 attachRemote 之后，否则版本号写不进去。
+                if (status.active) retuneIfModelChanged()
+            }
         }
         viewModelScope.launch(Dispatchers.Default) {
             spamLabels.labels.drop(1).collectLatest { retune(it.values) }
         }
+    }
+
+    private fun retuneIfModelChanged() {
+        val labels = spamLabels.labels.value.values
+        val base = SpamModel.bundled() ?: return
+        if (labels.isNotEmpty() && spamLabels.tunedModelFingerprint != base.fingerprint) retune(labels)
     }
 
     /** 根据全部标注重新拟合调优增量，并下发给 system_server。 */
@@ -97,7 +109,10 @@ class NoticeViewModel(application: Application) : AndroidViewModel(application) 
         val delta = SpamTuner.fit(base, labels.map { SpamTuner.Sample(it.text, it.spam) })
         explainModel = base.withDelta(delta)
         if (SpamDeltaWriter.write(delta)) {
-            report(rules.setSpamDeltaVersion(System.currentTimeMillis()))
+            // 版本号写入远程配置成功才算完成；失败（如模块服务尚未就绪）则下次再试
+            if (report(rules.setSpamDeltaVersion(System.currentTimeMillis()))) {
+                spamLabels.tunedModelFingerprint = base.fingerprint
+            }
         } else {
             _messages.tryEmit(R.string.save_need_active)
         }
@@ -109,6 +124,18 @@ class NoticeViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun clearLabels() = spamLabels.clear()
+
+    /** 用当前模型（内置 + 微调）重新计算一条记录的骚扰分数并写回记录。 */
+    fun rescore(record: NotificationRecord) {
+        viewModelScope.launch(Dispatchers.Default) {
+            val model = explainModel ?: run {
+                val base = SpamModel.bundled() ?: return@launch
+                (SpamDeltaWriter.read()?.let { base.withDelta(it) } ?: base).also { explainModel = it }
+            }
+            val verdict = SpamJudge.judge(model, config.value.spamThreshold, SpamLabelRepository.trainingText(record))
+            logs.updateSpamScore(record.id, verdict?.score, verdict?.protected == true)
+        }
+    }
 
     fun setDarkMode(mode: DarkMode) = appearanceRepo.setDarkMode(mode)
 

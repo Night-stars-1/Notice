@@ -41,6 +41,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Report
 import androidx.compose.material.icons.outlined.CheckCircle
@@ -51,6 +52,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ButtonGroupDefaults
 import androidx.compose.material3.ToggleButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Surface
@@ -89,6 +91,7 @@ fun LogsScreen(
     labels: Map<String, Boolean>,
     onLabel: (NotificationRecord, Boolean?) -> Unit,
     explain: (NotificationRecord) -> SpamExplainer.Explanation?,
+    onRescore: (NotificationRecord) -> Unit,
     contentPadding: PaddingValues,
 ) {
     var selected by remember { mutableStateOf<NotificationRecord?>(null) }
@@ -207,14 +210,21 @@ fun LogsScreen(
         }
     }
 
-    selected?.let { record ->
+    selected?.let { chosen ->
+        // 重新评分后记录会更新：始终显示列表里的最新版本
+        val record = records.firstOrNull { it.id == chosen.id } ?: chosen
         ModalBottomSheet(onDismissRequest = { selected = null }) {
             NotificationDetailSheet(
                 record = record,
                 appLabel = appLabel(record.packageName),
                 label = labels[record.id],
                 onLabel = { onLabel(record, it) },
-                explanation = if (record.details.spamScore != null) remember(record.id) { explain(record) } else null,
+                explanation = if (record.details.spamScore != null) {
+                    remember(record.id, record.details.spamScore) { explain(record) }
+                } else {
+                    null
+                },
+                onRescore = { onRescore(record) },
             )
         }
     }
@@ -341,6 +351,7 @@ private fun NotificationDetailSheet(
     label: Boolean?,
     onLabel: (Boolean?) -> Unit,
     explanation: SpamExplainer.Explanation?,
+    onRescore: () -> Unit,
 ) {
     val details = record.details
     // 解释是针对「标题\n正文」算的：把片段区间拆回标题 / 正文各自的下标。
@@ -420,10 +431,21 @@ private fun NotificationDetailSheet(
                 }
                 details.spamScore?.let { score ->
                     val shown = formatScore(score)
-                    DetailRow(
-                        stringResource(R.string.log_detail_spam_score),
-                        if (details.spamProtected) stringResource(R.string.log_spam_protected, shown) else shown,
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(modifier = Modifier.weight(1f)) {
+                            DetailRow(
+                                stringResource(R.string.log_detail_spam_score),
+                                if (details.spamProtected) stringResource(R.string.log_spam_protected, shown) else shown,
+                            )
+                        }
+                        IconButton(onClick = onRescore) {
+                            Icon(
+                                Icons.Outlined.Refresh,
+                                contentDescription = stringResource(R.string.log_rescore),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
                 }
                 if (explanation != null && (explanation.positives.isNotEmpty() || explanation.negatives.isNotEmpty())) {
                     ReasonRow(explanation)

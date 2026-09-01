@@ -312,6 +312,7 @@ fun NoticeApp(
                         labels = labels.mapValues { it.value.spam },
                         onLabel = viewModel::setLabel,
                         explain = viewModel::explain,
+                        onRescore = viewModel::rescore,
                         logAppPackages = logAppPackages,
                         onPickLogApps = { pickingLogApps = true },
                         onClearLogApps = { logAppPackages = emptySet() },
@@ -360,6 +361,7 @@ private fun HomeScaffold(
     labels: Map<String, Boolean>,
     onLabel: (NotificationRecord, Boolean?) -> Unit,
     explain: (NotificationRecord) -> SpamExplainer.Explanation?,
+    onRescore: (NotificationRecord) -> Unit,
     logAppPackages: Set<String>,
     onPickLogApps: () -> Unit,
     onClearLogApps: () -> Unit,
@@ -609,6 +611,7 @@ private fun HomeScaffold(
                     labels = labels,
                     onLabel = onLabel,
                     explain = explain,
+                    onRescore = onRescore,
                     contentPadding = padding,
                 )
                 else -> SettingsScreen(

@@ -53,7 +53,7 @@ internal class LogSink {
             try {
                 ctx.contentResolver.insert(uri, values)
             } catch (t: Throwable) {
-                Xp.log("log insert failed", t, mirror = false)
+                Xp.log("日志写入应用失败", t, mirror = false)
             }
         }
     }
@@ -65,7 +65,7 @@ internal class LogSink {
                 proc.pkgList?.contains(BuildConfig.APPLICATION_ID) == true
             } == true
         } catch (t: Throwable) {
-            Xp.log("query running processes failed", t, mirror = false)
+            Xp.log("查询运行中进程失败", t, mirror = false)
             false
         }
     }
@@ -87,7 +87,7 @@ internal class LogSink {
                 ctx.registerReceiver(receiver, filter)
             }
         } catch (t: Throwable) {
-            Xp.log("register flush receiver failed", t, mirror = false)
+            Xp.log("注册日志刷写广播接收器失败", t, mirror = false)
         }
     }
 

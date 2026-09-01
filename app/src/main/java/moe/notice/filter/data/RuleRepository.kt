@@ -1,7 +1,6 @@
 package moe.notice.filter.data
 
 import android.content.Context
-import android.content.Intent
 import android.content.SharedPreferences
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -16,9 +15,8 @@ import moe.notice.filter.domain.FilterConfig
  * 除非已绑定框架服务，否则不会写入任何内容。
  */
 class RuleRepository(context: Context) {
-    private val appContext: Context = context.applicationContext
     private val cache: SharedPreferences =
-        appContext.getSharedPreferences(FilterPrefs.NAME, Context.MODE_PRIVATE)
+        context.applicationContext.getSharedPreferences(FilterPrefs.NAME, Context.MODE_PRIVATE)
 
     @Volatile
     private var remote: SharedPreferences? = null
@@ -108,12 +106,6 @@ class RuleRepository(context: Context) {
             .commit()
         cacheLocally(config)
         _config.value = config
-        notifyModule()
-    }
-
-    /** 主动通知 system_server 重新加载：远程偏好的 OnSharedPreferenceChangeListener 在部分框架上不会触发。 */
-    private fun notifyModule() {
-        runCatching { appContext.sendBroadcast(Intent(FilterPrefs.ACTION_RELOAD)) }
     }
 
     private fun cacheLocally(config: FilterConfig) {

@@ -41,7 +41,7 @@ internal class BlockedInbox {
                 Context.CONTEXT_IGNORE_SECURITY,
             )
         } catch (t: Throwable) {
-            Xp.log("package context failed", t)
+            Xp.log("创建应用包上下文失败", t)
         }
         val filter = IntentFilter(ACTION_UNDO).apply { addAction(ACTION_DISMISS) }
         val receiver = object : BroadcastReceiver() {
@@ -60,7 +60,7 @@ internal class BlockedInbox {
                 ctx.registerReceiver(receiver, filter)
             }
         } catch (t: Throwable) {
-            Xp.log("register undo receiver failed", t)
+            Xp.log("注册撤销广播接收器失败", t)
         }
     }
 
@@ -120,7 +120,7 @@ internal class BlockedInbox {
             try {
                 Xp.invokeOrigin(method, target, item.args)
             } catch (t: Throwable) {
-                Xp.log("restore failed", t)
+                Xp.log("撤销拦截（恢复通知）失败", t)
             }
         }
         val handler = nmsHandler(target)
@@ -144,7 +144,7 @@ internal class BlockedInbox {
             val notification = buildNotification(appCtx, ctx, snapshot)
             postSummary(nm, notification)
         } catch (t: Throwable) {
-            Xp.log("publish inbox failed", t)
+            Xp.log("发布拦截收件箱通知失败", t)
         } finally {
             Binder.restoreCallingIdentity(identity)
         }
@@ -216,7 +216,7 @@ internal class BlockedInbox {
                 )
                 return
             } catch (t: Throwable) {
-                Xp.log("enqueue summary fallback", t)
+                Xp.log("发布收件箱通知：回退到直接调用 enqueue", t)
             }
         }
         nm.notify(TAG, ID, notification)
@@ -228,7 +228,7 @@ internal class BlockedInbox {
                 nm.cancelAsPackage(BuildConfig.APPLICATION_ID, TAG, ID)
                 return
             } catch (t: Throwable) {
-                Xp.log("cancelAsPackage failed", t)
+                Xp.log("cancelAsPackage 失败", t)
             }
         }
         nm.cancel(TAG, ID)
@@ -267,7 +267,7 @@ internal class BlockedInbox {
             val nm = appCtx.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             nm.createNotificationChannel(channel)
         } catch (t: Throwable) {
-            Xp.log("create channel failed", t)
+            Xp.log("创建通知渠道失败", t)
         }
     }
 
