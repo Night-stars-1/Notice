@@ -14,6 +14,8 @@ data class FilterConfig(
     val debugLogEnabled: Boolean = true,
     /** 是否为每条通知输出一行 judge 判定日志（含匹配结果、分数和文本摘要）。 */
     val judgeLogEnabled: Boolean = false,
+    /** 拦截后是否在通知栏显示「拦截收件箱」汇总通知（可从中撤销）。 */
+    val inboxEnabled: Boolean = true,
 ) {
     companion object {
         const val DEFAULT_SPAM_THRESHOLD = 0.9f

@@ -107,6 +107,12 @@ internal class BlockedInbox {
         synchronized(lock) { items.clear() }
     }
 
+    /** 关闭「显示拦截通知」：清空条目并撤下已发出的汇总通知。 */
+    fun disable() {
+        synchronized(lock) { items.clear() }
+        if (context != null) publish()
+    }
+
     fun undo(key: String) {
         val item = synchronized(lock) { items.remove(key) } ?: return
         restore(item)

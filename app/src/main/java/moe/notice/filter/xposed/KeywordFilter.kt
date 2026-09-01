@@ -32,6 +32,10 @@ internal class KeywordFilter {
     private var api: XposedInterface? = null
     private var reloadReceiverRegistered = false
     private val sink = LogSink()
+
+    /** 配置每次加载 / 更新后回调（在调用线程上执行）。 */
+    var onConfigChanged: ((FilterConfig) -> Unit)? = null
+    val inboxEnabled: Boolean get() = config.inboxEnabled
     // 强引用持有：SharedPreferences 的实现以弱引用保存监听器。
     private var listener: SharedPreferences.OnSharedPreferenceChangeListener? = null
 
@@ -258,7 +262,12 @@ internal class KeywordFilter {
 
     private fun logConfig(source: String) {
         DebugLog.enabled = config.debugLogEnabled
-        val summary = "enabled=${config.enabled} log=${config.logEnabled} spam=${config.spamEnabled}@${config.spamThreshold} delta=${config.spamDeltaVersion} excluded=${config.spamExcludedPackages.size} rules=${config.rules.size} $source"
+        try {
+            onConfigChanged?.invoke(config)
+        } catch (t: Throwable) {
+            Xp.log("config callback failed", t)
+        }
+        val summary = "enabled=${config.enabled} log=${config.logEnabled} inbox=${config.inboxEnabled} spam=${config.spamEnabled}@${config.spamThreshold} delta=${config.spamDeltaVersion} excluded=${config.spamExcludedPackages.size} rules=${config.rules.size} $source"
         if (summary == lastConfigSummary) return
         lastConfigSummary = summary
         Xp.log("config $summary")

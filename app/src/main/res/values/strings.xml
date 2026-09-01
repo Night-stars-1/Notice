@@ -41,6 +41,8 @@
     <string name="about_github_hint">点个 Star 支持开发者</string>
     <string name="about_github_url">https://github.com/Night-stars-1/Notice</string>
     <string name="tab_settings">设置</string>
+    <string name="inbox_switch">显示拦截通知</string>
+    <string name="inbox_switch_hint">拦截后在通知栏汇总显示被拦下的通知，可从中撤销</string>
     <string name="section_rules">规则</string>
     <string name="enable_filter">启用关键词拦截</string>
     <string name="enable_log">记录通知</string>
