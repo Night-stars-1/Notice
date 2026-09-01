@@ -324,6 +324,7 @@ private fun RuleCard(
     }
     val meta = buildString {
         if (rule.action != RuleAction.BLOCK) append(stringResource(rule.action.labelRes())).append(" · ")
+        if (rule.action == RuleAction.BLOCK && !rule.notify) append(stringResource(R.string.rule_silent)).append(" · ")
         append(stringResource(rule.mode.labelRes())).append(" · ").append(apps)
     }
     Surface(

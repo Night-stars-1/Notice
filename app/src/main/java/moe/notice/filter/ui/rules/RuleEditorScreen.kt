@@ -70,6 +70,7 @@ fun RuleEditorScreen(
 ) {
     var name by remember { mutableStateOf(initial.name) }
     var enabled by remember { mutableStateOf(initial.enabled) }
+    var notify by remember { mutableStateOf(initial.notify) }
     var mode by remember { mutableStateOf(initial.mode) }
     var action by remember { mutableStateOf(initial.action) }
     var actionMenuExpanded by remember { mutableStateOf(false) }
@@ -84,6 +85,7 @@ fun RuleEditorScreen(
     fun persist(): BlockRule = initial.copy(
         name = name.trim(),
         enabled = enabled,
+        notify = notify,
         mode = mode,
         action = action,
         keywords = keywords,
@@ -189,6 +191,44 @@ fun RuleEditorScreen(
                             null
                         },
                     )
+                }
+            }
+            if (action == RuleAction.BLOCK) {
+                Surface(
+                    onClick = { notify = !notify },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = MaterialTheme.shapes.large,
+                    color = MaterialTheme.colorScheme.surfaceContainerLow,
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    ) {
+                        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Text(text = stringResource(R.string.rule_notify), style = MaterialTheme.typography.titleMedium)
+                            Text(
+                                text = stringResource(R.string.rule_notify_hint),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        Switch(
+                            checked = notify,
+                            onCheckedChange = { notify = it },
+                            thumbContent = if (notify) {
+                                {
+                                    Icon(
+                                        imageVector = Icons.Outlined.Check,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(SwitchDefaults.IconSize),
+                                    )
+                                }
+                            } else {
+                                null
+                            },
+                        )
+                    }
                 }
             }
             ExposedDropdownMenuBox(

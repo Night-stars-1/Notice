@@ -58,6 +58,11 @@ class FilterConfigCodecTest {
         assertEquals(listOf(RuleAction.ALLOW, RuleAction.SKIP_AI, RuleAction.BLOCK), decoded.rules.map { it.action })
         val legacy = FilterConfigCodec.decode("""{"rules":[{"id":"old","keywords":["k"]}]}""")
         assertEquals(RuleAction.BLOCK, legacy.rules.single().action)
+        assertTrue(legacy.rules.single().notify)
+        val silent = FilterConfigCodec.decode(
+            FilterConfigCodec.encode(FilterConfig(rules = listOf(BlockRule(id = "q", keywords = listOf("x"), notify = false)))),
+        )
+        assertFalse(silent.rules.single().notify)
     }
 
     @Test

@@ -42,17 +42,19 @@ class NoticeModule : XposedModule() {
                 } catch (t: Throwable) {
                     Xp.log("inbox attach failed", t)
                 }
-                val block = try {
+                val outcome = try {
                     filter.shouldBlock(args, ctx)
                 } catch (t: Throwable) {
                     Xp.log("filter failed", t)
-                    false
+                    KeywordFilter.Outcome.PASS
                 }
-                if (!block) return@intercept chain.proceed()
-                try {
-                    inbox.onBlocked(chain.executable as Method, service, args)
-                } catch (t: Throwable) {
-                    Xp.log("inbox update failed", t)
+                if (!outcome.block) return@intercept chain.proceed()
+                if (outcome.notify) {
+                    try {
+                        inbox.onBlocked(chain.executable as Method, service, args)
+                    } catch (t: Throwable) {
+                        Xp.log("inbox update failed", t)
+                    }
                 }
                 skipResult(target)
             }

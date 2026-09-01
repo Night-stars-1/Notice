@@ -67,6 +67,9 @@
     <string name="rule_edit">编辑规则</string>
     <string name="rule_name">规则名称</string>
     <string name="rule_enabled">启用此规则</string>
+    <string name="rule_notify">拦截后通知</string>
+    <string name="rule_notify_hint">放入通知栏的拦截收件箱，可从中撤销；关闭则静默拦截</string>
+    <string name="rule_silent">静默</string>
     <string name="rule_apps">适用应用</string>
     <string name="app_list_whitelist">白名单</string>
     <string name="app_list_blacklist">黑名单</string>

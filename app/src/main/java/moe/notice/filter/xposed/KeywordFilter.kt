@@ -122,7 +122,14 @@ internal class KeywordFilter {
         }
     }
 
-    fun shouldBlock(args: Array<Any?>, context: Context?): Boolean {
+    /** 一次判定的结果：是否拦截，以及拦截后是否放入收件箱通知（规则可选择静默拦截）。 */
+    data class Outcome(val block: Boolean, val notify: Boolean) {
+        companion object {
+            val PASS = Outcome(block = false, notify = false)
+        }
+    }
+
+    fun shouldBlock(args: Array<Any?>, context: Context?): Outcome {
         if (context != null) {
             DebugLog.attach(context, sink)
             ensureReloadReceiver(context)
@@ -140,13 +147,13 @@ internal class KeywordFilter {
             // 诸如 "android" 之类的系统包名不含点号；enqueue 的第一个 String 参数即为包名。
             pkg = args.firstOrNull { it is String && it.isNotBlank() } as? String
         }
-        val n = notification ?: return false
-        if (n.extras?.getBoolean(BlockedInbox.EXTRA_MARKER) == true) return false
-        if (n.channelId == InboxChannel.ID) return false
-        if (isCritical(n)) return false
+        val n = notification ?: return Outcome.PASS
+        if (n.extras?.getBoolean(BlockedInbox.EXTRA_MARKER) == true) return Outcome.PASS
+        if (n.channelId == InboxChannel.ID) return Outcome.PASS
+        if (isCritical(n)) return Outcome.PASS
 
         val resolved = Xiaomi.resolvePackage(pkg, n)
-        if (resolved in PROTECTED_PACKAGES) return false
+        if (resolved in PROTECTED_PACKAGES) return Outcome.PASS
 
         val extracted = NotificationText.extract(n)
         val cfg = config
@@ -188,7 +195,7 @@ internal class KeywordFilter {
                 Xp.log("log failed", t)
             }
         }
-        return hit != null
+        return Outcome(block = hit != null, notify = hit?.notify ?: false)
     }
 
     private fun formatJudgeLog(

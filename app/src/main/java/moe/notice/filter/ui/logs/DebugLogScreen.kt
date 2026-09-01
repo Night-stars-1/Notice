@@ -78,7 +78,7 @@ fun DebugLogScreen(
     var filter by remember { mutableIntStateOf(0) } // 0 全部 / 1 仅错误 / 2 不含判定
     var filterMenu by remember { mutableStateOf(false) }
     var confirmClear by remember { mutableStateOf(false) }
-    var expanded by remember { mutableStateOf<Set<Long>>(emptySet()) }
+    var expanded by remember { mutableStateOf<Set<String>>(emptySet()) }
     val context = LocalContext.current
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -190,15 +190,17 @@ fun DebugLogScreen(
             ),
             verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
-            itemsIndexed(visible, key = { _, line -> line.key }) { index, line ->
-                val open = line.key in expanded
+            // 同一毫秒可能有多条内容相同的日志，key 必须带上位置才唯一
+            itemsIndexed(visible, key = { index, line -> "${line.timestamp}#$index" }) { index, line ->
+                val itemKey = "${line.timestamp}#$index"
+                val open = itemKey in expanded
                 LogEntryCard(
                     line = line,
                     time = timeFormat.format(Date(line.timestamp)),
                     appLabel = appLabel,
                     expanded = open,
                     shape = groupedListShape(index, visible.size),
-                    onClick = { expanded = if (open) expanded - line.key else expanded + line.key },
+                    onClick = { expanded = if (open) expanded - itemKey else expanded + itemKey },
                 )
             }
         }
@@ -377,8 +379,6 @@ private fun CodeBlock(text: String) {
         )
     }
 }
-
-private val DebugLine.key: Long get() = timestamp * 31 + message.hashCode()
 
 private fun plainText(line: DebugLine, timeFormat: SimpleDateFormat): String {
     val head = timeFormat.format(Date(line.timestamp)) + " " + (if (line.isError) "E" else "I") + " " + line.message

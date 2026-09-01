@@ -13,6 +13,8 @@ data class BlockRule(
     val appListMode: AppListMode = AppListMode.WHITELIST,
     val compiled: List<Regex> = emptyList(),
     val action: RuleAction = RuleAction.BLOCK,
+    /** 拦截后是否放入通知栏的「拦截收件箱」汇总通知；关闭则静默拦截。 */
+    val notify: Boolean = true,
 ) {
     val appliesToAllApps: Boolean get() = packages.isEmpty()
 

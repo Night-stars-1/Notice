@@ -92,6 +92,7 @@ object FilterConfigCodec {
         obj.put("packages", JSONArray(rule.packages))
         obj.put("appListMode", rule.appListMode.id)
         obj.put("action", rule.action.id)
+        obj.put("notify", rule.notify)
         return obj
     }
 
@@ -105,6 +106,7 @@ object FilterConfigCodec {
         packages = stringList(obj.optJSONArray("packages")),
         appListMode = AppListMode.fromId(obj.optString("appListMode")),
         action = RuleAction.fromId(obj.optString("action")),
+        notify = obj.optBoolean("notify", true),
     )
 
     private fun stringList(array: JSONArray?): List<String> {
