@@ -91,7 +91,7 @@ fun LogsScreen(
     labels: Map<String, Boolean>,
     onLabel: (NotificationRecord, Boolean?) -> Unit,
     explain: (NotificationRecord) -> SpamExplainer.Explanation?,
-    onRescore: (NotificationRecord) -> Unit,
+    onRescore: (NotificationRecord) -> SpamJudge.Verdict?,
     contentPadding: PaddingValues,
 ) {
     var selected by remember { mutableStateOf<NotificationRecord?>(null) }
@@ -210,20 +210,14 @@ fun LogsScreen(
         }
     }
 
-    selected?.let { chosen ->
-        // 重新评分后记录会更新：始终显示列表里的最新版本
-        val record = records.firstOrNull { it.id == chosen.id } ?: chosen
+    selected?.let { record ->
         ModalBottomSheet(onDismissRequest = { selected = null }) {
             NotificationDetailSheet(
                 record = record,
                 appLabel = appLabel(record.packageName),
                 label = labels[record.id],
                 onLabel = { onLabel(record, it) },
-                explanation = if (record.details.spamScore != null) {
-                    remember(record.id, record.details.spamScore) { explain(record) }
-                } else {
-                    null
-                },
+                explanation = if (record.details.spamScore != null) remember(record.id) { explain(record) } else null,
                 onRescore = { onRescore(record) },
             )
         }
@@ -351,8 +345,10 @@ private fun NotificationDetailSheet(
     label: Boolean?,
     onLabel: (Boolean?) -> Unit,
     explanation: SpamExplainer.Explanation?,
-    onRescore: () -> Unit,
+    onRescore: () -> SpamJudge.Verdict?,
 ) {
+    // 「重新评分」的结果只在本次详情页里展示，不改动记录里保存的分数
+    var rescored by remember(record.id) { mutableStateOf<Pair<Boolean, SpamJudge.Verdict?>?>(null) }
     val details = record.details
     // 解释是针对「标题\n正文」算的：把片段区间拆回标题 / 正文各自的下标。
     val titleLen = if (record.title.isNotBlank()) record.title.length else -1
@@ -438,7 +434,7 @@ private fun NotificationDetailSheet(
                                 if (details.spamProtected) stringResource(R.string.log_spam_protected, shown) else shown,
                             )
                         }
-                        IconButton(onClick = onRescore) {
+                        IconButton(onClick = { rescored = true to onRescore() }) {
                             Icon(
                                 Icons.Outlined.Refresh,
                                 contentDescription = stringResource(R.string.log_rescore),
@@ -446,6 +442,16 @@ private fun NotificationDetailSheet(
                             )
                         }
                     }
+                }
+                rescored?.let { (_, verdict) ->
+                    DetailRow(
+                        stringResource(R.string.log_detail_current_score),
+                        when {
+                            verdict == null -> stringResource(R.string.log_rescore_too_short)
+                            verdict.protected -> stringResource(R.string.log_spam_protected, formatScore(verdict.score))
+                            else -> formatScore(verdict.score)
+                        },
+                    )
                 }
                 if (explanation != null && (explanation.positives.isNotEmpty() || explanation.negatives.isNotEmpty())) {
                     ReasonRow(explanation)

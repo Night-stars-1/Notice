@@ -99,6 +99,7 @@ import moe.notice.filter.domain.Appearance
 import moe.notice.filter.domain.AppListMode
 import moe.notice.filter.domain.DarkMode
 import moe.notice.filter.domain.SpamExplainer
+import moe.notice.filter.domain.SpamJudge
 import moe.notice.filter.domain.BlockRule
 import moe.notice.filter.domain.FilterConfig
 import moe.notice.filter.domain.NotificationRecord
@@ -361,7 +362,7 @@ private fun HomeScaffold(
     labels: Map<String, Boolean>,
     onLabel: (NotificationRecord, Boolean?) -> Unit,
     explain: (NotificationRecord) -> SpamExplainer.Explanation?,
-    onRescore: (NotificationRecord) -> Unit,
+    onRescore: (NotificationRecord) -> SpamJudge.Verdict?,
     logAppPackages: Set<String>,
     onPickLogApps: () -> Unit,
     onClearLogApps: () -> Unit,

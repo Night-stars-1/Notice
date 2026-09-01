@@ -81,21 +81,6 @@ class LogRepository internal constructor(private val file: File) {
             existing.details.tag == incoming.details.tag &&
             incoming.timestamp - existing.timestamp in 0..MERGE_WINDOW_MS
 
-    /** 重新评分后写回分数；找不到记录时不做任何事。 */
-    fun updateSpamScore(id: String, score: Float?, protected: Boolean) {
-        synchronized(lock) {
-            val current = _items.value
-            val index = current.indexOfFirst { it.id == id }
-            if (index < 0) return
-            val old = current[index]
-            val next = current.toMutableList().also {
-                it[index] = old.copy(details = old.details.copy(spamScore = score, spamProtected = protected))
-            }
-            writeLocked(next)
-            _items.value = next
-        }
-    }
-
     fun clear() {
         synchronized(lock) {
             writeLocked(emptyList())

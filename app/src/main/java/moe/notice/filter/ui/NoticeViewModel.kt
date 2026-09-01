@@ -125,16 +125,13 @@ class NoticeViewModel(application: Application) : AndroidViewModel(application) 
 
     fun clearLabels() = spamLabels.clear()
 
-    /** 用当前模型（内置 + 微调）重新计算一条记录的骚扰分数并写回记录。 */
-    fun rescore(record: NotificationRecord) {
-        viewModelScope.launch(Dispatchers.Default) {
-            val model = explainModel ?: run {
-                val base = SpamModel.bundled() ?: return@launch
-                (SpamDeltaWriter.read()?.let { base.withDelta(it) } ?: base).also { explainModel = it }
-            }
-            val verdict = SpamJudge.judge(model, config.value.spamThreshold, SpamLabelRepository.trainingText(record))
-            logs.updateSpamScore(record.id, verdict?.score, verdict?.protected == true)
+    /** 用当前模型（内置 + 微调）重新计算一条记录的骚扰分数，只返回结果、不写回记录。 */
+    fun rescore(record: NotificationRecord): SpamJudge.Verdict? {
+        val model = explainModel ?: run {
+            val base = SpamModel.bundled() ?: return null
+            (SpamDeltaWriter.read()?.let { base.withDelta(it) } ?: base).also { explainModel = it }
         }
+        return SpamJudge.judge(model, config.value.spamThreshold, SpamLabelRepository.trainingText(record))
     }
 
     fun setDarkMode(mode: DarkMode) = appearanceRepo.setDarkMode(mode)
