@@ -28,6 +28,7 @@ import moe.notice.filter.data.RuleRepository
 import moe.notice.filter.data.SpamDeltaWriter
 import moe.notice.filter.data.SpamLabel
 import moe.notice.filter.data.SpamLabelRepository
+import moe.notice.filter.data.UpdateRepository
 import moe.notice.filter.domain.Appearance
 import moe.notice.filter.domain.BlockRule
 import moe.notice.filter.domain.DarkMode
@@ -37,6 +38,10 @@ import moe.notice.filter.domain.SpamExplainer
 import moe.notice.filter.domain.SpamJudge
 import moe.notice.filter.domain.SpamModel
 import moe.notice.filter.domain.SpamTuner
+import moe.notice.filter.domain.UpdateState
+import moe.notice.filter.domain.AppVersion
+import moe.notice.filter.BuildConfig
+import android.content.Context
 
 class NoticeViewModel(application: Application) : AndroidViewModel(application) {
     private val rules = RuleRepository(application)
@@ -45,6 +50,10 @@ class NoticeViewModel(application: Application) : AndroidViewModel(application) 
     private val spamLabels = SpamLabelRepository(application)
     private val appearanceRepo = AppearanceRepository(application)
     private val debugLog = DebugLogRepository.get(application)
+    private val updates = UpdateRepository(application)
+
+    private val _updateState = MutableStateFlow<UpdateState>(UpdateState.Idle)
+    val updateState: StateFlow<UpdateState> = _updateState.asStateFlow()
 
     val config: StateFlow<FilterConfig> = rules.config
         .stateIn(viewModelScope, SharingStarted.Eagerly, rules.config.value)
@@ -83,6 +92,52 @@ class NoticeViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch(Dispatchers.Default) {
             spamLabels.labels.drop(1).collectLatest { retune(it.values) }
         }
+        // 每天最多静默检查一次更新
+        if (System.currentTimeMillis() - updates.lastCheckedAt > 24 * 60 * 60 * 1000L) checkForUpdate(silent = true)
+    }
+
+    /** 检查 GitHub Releases；[silent] 为启动时的静默检查，只在有新版本时改变状态。 */
+    fun checkForUpdate(silent: Boolean = false) {
+        val state = _updateState.value
+        if (state is UpdateState.Checking || state is UpdateState.Downloading) return
+        if (!silent) _updateState.value = UpdateState.Checking
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val info = updates.fetchLatest()
+                updates.lastCheckedAt = System.currentTimeMillis()
+                if (AppVersion.isNewer(info.tag, BuildConfig.VERSION_NAME)) {
+                    _updateState.value = UpdateState.Available(info)
+                } else if (!silent) {
+                    _updateState.value = UpdateState.UpToDate(info.tag)
+                }
+            } catch (t: Throwable) {
+                if (!silent) _updateState.value = UpdateState.Error(t.message ?: t.javaClass.simpleName)
+            }
+        }
+    }
+
+    fun downloadUpdate() {
+        val info = (_updateState.value as? UpdateState.Available)?.info ?: return
+        _updateState.value = UpdateState.Downloading(info, 0f)
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val file = updates.download(info) { p -> _updateState.value = UpdateState.Downloading(info, p) }
+                _updateState.value = UpdateState.Ready(info, file)
+            } catch (t: Throwable) {
+                _updateState.value = UpdateState.Error(t.message ?: t.javaClass.simpleName)
+            }
+        }
+    }
+
+    /** 拉起系统安装器；返回是否成功启动。 */
+    fun installUpdate(context: Context): Boolean {
+        val ready = _updateState.value as? UpdateState.Ready ?: return false
+        return runCatching { context.startActivity(updates.installIntent(ready.file)); true }.getOrDefault(false)
+    }
+
+    fun dismissUpdate() {
+        val s = _updateState.value
+        if (s is UpdateState.UpToDate || s is UpdateState.Error) _updateState.value = UpdateState.Idle
     }
 
     private fun retuneIfModelChanged() {

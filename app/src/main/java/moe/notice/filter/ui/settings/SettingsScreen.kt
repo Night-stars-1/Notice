@@ -29,6 +29,14 @@ import moe.notice.filter.domain.Appearance
 import moe.notice.filter.domain.DarkMode
 import moe.notice.filter.ui.theme.ThemePresets
 import moe.notice.filter.ui.theme.supportsDynamicColor
+import android.widget.Toast
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.outlined.SystemUpdate
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.runtime.LaunchedEffect
+import moe.notice.filter.domain.UpdateState
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.lazy.LazyColumn
@@ -92,9 +100,21 @@ fun SettingsScreen(
     tuneSampleCount: Int,
     onClearLabels: () -> Unit,
     onRequestTest: () -> Unit,
+    updateState: UpdateState,
+    onCheckUpdate: () -> Unit,
+    onDownloadUpdate: () -> Unit,
+    onInstallUpdate: () -> Boolean,
+    onDismissUpdate: () -> Unit,
     contentPadding: PaddingValues,
 ) {
     var confirmClearLabels by remember { mutableStateOf(false) }
+    var updateDialog by remember { mutableStateOf(false) }
+    val updateInfo = when (updateState) {
+        is UpdateState.Available -> updateState.info
+        is UpdateState.Downloading -> updateState.info
+        is UpdateState.Ready -> updateState.info
+        else -> null
+    }
     var darkModeDialog by remember { mutableStateOf(false) }
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -284,8 +304,35 @@ fun SettingsScreen(
                     BuildConfig.VERSION_NAME,
                     BuildConfig.VERSION_CODE,
                 ),
-                shape = groupedListShape(0, 2),
+                shape = groupedListShape(0, 3),
             )
+        }
+        item {
+            SettingRow(
+                icon = Icons.Outlined.SystemUpdate,
+                title = stringResource(R.string.about_update),
+                supporting = when (updateState) {
+                    UpdateState.Idle -> stringResource(R.string.update_tap_to_check)
+                    UpdateState.Checking -> stringResource(R.string.update_checking)
+                    is UpdateState.UpToDate -> stringResource(R.string.update_up_to_date)
+                    is UpdateState.Available -> stringResource(R.string.update_available, updateState.info.tag)
+                    is UpdateState.Downloading -> stringResource(R.string.update_downloading, (updateState.progress * 100).toInt().coerceIn(0, 100))
+                    is UpdateState.Ready -> stringResource(R.string.update_ready)
+                    is UpdateState.Error -> stringResource(R.string.update_error, updateState.message)
+                },
+                shape = groupedListShape(1, 3),
+                onClick = { if (updateInfo != null) updateDialog = true else onCheckUpdate() },
+            ) {
+                if (updateState is UpdateState.Checking) {
+                    CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                } else {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Outlined.KeyboardArrowRight,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
         }
         item {
             val context = LocalContext.current
@@ -294,7 +341,7 @@ fun SettingsScreen(
                 icon = Icons.Outlined.Code,
                 title = stringResource(R.string.about_github),
                 supporting = stringResource(R.string.about_github_hint),
-                shape = groupedListShape(1, 2),
+                shape = groupedListShape(2, 3),
                 onClick = {
                     runCatching {
                         context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
@@ -307,6 +354,49 @@ fun SettingsScreen(
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
+        }
+    }
+    if (updateDialog && updateInfo != null) {
+        val context = LocalContext.current
+        val installFailed = stringResource(R.string.update_install_failed)
+        AlertDialog(
+            onDismissRequest = { updateDialog = false },
+            title = { Text(stringResource(R.string.update_dialog_title, updateInfo.tag)) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    if (updateState is UpdateState.Downloading) {
+                        val p = updateState.progress
+                        if (p >= 0f) LinearProgressIndicator(progress = { p }, modifier = Modifier.fillMaxWidth())
+                        else LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                    }
+                    Text(
+                        text = updateInfo.notes.ifBlank { updateInfo.htmlUrl },
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier
+                            .heightIn(max = 320.dp)
+                            .verticalScroll(rememberScrollState()),
+                    )
+                }
+            },
+            confirmButton = {
+                when (updateState) {
+                    is UpdateState.Ready -> TextButton(onClick = {
+                        if (!onInstallUpdate()) Toast.makeText(context, installFailed, Toast.LENGTH_SHORT).show()
+                    }) { Text(stringResource(R.string.update_install)) }
+                    is UpdateState.Downloading -> Unit
+                    else -> TextButton(onClick = onDownloadUpdate) { Text(stringResource(R.string.update_download_install)) }
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { updateDialog = false }) { Text(stringResource(R.string.update_later)) }
+            },
+        )
+    }
+    if (updateState is UpdateState.UpToDate || updateState is UpdateState.Error) {
+        // 提示性状态只停留几秒，然后回到「点击检查」
+        LaunchedEffect(updateState) {
+            kotlinx.coroutines.delay(6_000)
+            onDismissUpdate()
         }
     }
     if (darkModeDialog) {

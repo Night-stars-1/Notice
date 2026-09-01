@@ -100,6 +100,7 @@ import moe.notice.filter.domain.AppListMode
 import moe.notice.filter.domain.DarkMode
 import moe.notice.filter.domain.SpamExplainer
 import moe.notice.filter.domain.SpamJudge
+import moe.notice.filter.domain.UpdateState
 import moe.notice.filter.domain.BlockRule
 import moe.notice.filter.domain.FilterConfig
 import moe.notice.filter.domain.NotificationRecord
@@ -126,6 +127,7 @@ fun NoticeApp(
         val apps by viewModel.apps.collectAsStateWithLifecycle()
         val moduleStatus by viewModel.moduleStatus.collectAsStateWithLifecycle()
         val labels by viewModel.labels.collectAsStateWithLifecycle()
+        val updateState by viewModel.updateState.collectAsStateWithLifecycle()
         var tab by remember { mutableIntStateOf(0) }
         LaunchedEffect(openLogs) {
             if (openLogs) {
@@ -300,6 +302,11 @@ fun NoticeApp(
                         onSpamEnabledChange = viewModel::setSpamEnabled,
                         onSpamThresholdChange = viewModel::setSpamThreshold,
                         onOpenDebugLog = { showDebugLog = true },
+                        updateState = updateState,
+                        onCheckUpdate = { viewModel.checkForUpdate() },
+                        onDownloadUpdate = viewModel::downloadUpdate,
+                        onInstallUpdate = { viewModel.installUpdate(context) },
+                        onDismissUpdate = viewModel::dismissUpdate,
                         onDebugLogEnabledChange = viewModel::setDebugLogEnabled,
                         onJudgeLogEnabledChange = viewModel::setJudgeLogEnabled,
                         appearance = appearance,
@@ -349,6 +356,11 @@ private fun HomeScaffold(
     onSpamEnabledChange: (Boolean) -> Unit,
     onSpamThresholdChange: (Float) -> Unit,
     onOpenDebugLog: () -> Unit,
+    updateState: UpdateState,
+    onCheckUpdate: () -> Unit,
+    onDownloadUpdate: () -> Unit,
+    onInstallUpdate: () -> Boolean,
+    onDismissUpdate: () -> Unit,
     onDebugLogEnabledChange: (Boolean) -> Unit,
     onJudgeLogEnabledChange: (Boolean) -> Unit,
     appearance: Appearance,
@@ -622,6 +634,11 @@ private fun HomeScaffold(
                     onSpamEnabledChange = onSpamEnabledChange,
                     onSpamThresholdChange = onSpamThresholdChange,
                     onOpenDebugLog = onOpenDebugLog,
+                    updateState = updateState,
+                    onCheckUpdate = onCheckUpdate,
+                    onDownloadUpdate = onDownloadUpdate,
+                    onInstallUpdate = onInstallUpdate,
+                    onDismissUpdate = onDismissUpdate,
                     onDebugLogEnabledChange = onDebugLogEnabledChange,
                     onJudgeLogEnabledChange = onJudgeLogEnabledChange,
                     appearance = appearance,
