@@ -110,6 +110,7 @@ import moe.notice.filter.ui.rules.AppPickerScreen
 import moe.notice.filter.ui.rules.RuleEditorScreen
 import moe.notice.filter.ui.rules.RulesScreen
 import moe.notice.filter.ui.settings.SettingsScreen
+import moe.notice.filter.ui.settings.UpdateDialog
 import moe.notice.filter.ui.theme.NoticeTheme
 import moe.notice.filter.ui.theme.isDark
 
@@ -128,6 +129,7 @@ fun NoticeApp(
         val moduleStatus by viewModel.moduleStatus.collectAsStateWithLifecycle()
         val labels by viewModel.labels.collectAsStateWithLifecycle()
         val updateState by viewModel.updateState.collectAsStateWithLifecycle()
+        val updateDialogVisible by viewModel.updateDialogVisible.collectAsStateWithLifecycle()
         var tab by remember { mutableIntStateOf(0) }
         LaunchedEffect(openLogs) {
             if (openLogs) {
@@ -146,6 +148,14 @@ fun NoticeApp(
         val snackbar = remember { SnackbarHostState() }
         val scope = rememberCoroutineScope()
         val context = LocalContext.current
+        if (updateDialogVisible) {
+            UpdateDialog(
+                updateState = updateState,
+                onDownload = viewModel::downloadUpdate,
+                onInstall = { viewModel.installUpdate(context) },
+                onDismiss = viewModel::closeUpdateDialog,
+            )
+        }
         LaunchedEffect(Unit) {
             viewModel.messages.collect { snackbar.showSnackbar(context.getString(it)) }
         }
@@ -304,8 +314,7 @@ fun NoticeApp(
                         onOpenDebugLog = { showDebugLog = true },
                         updateState = updateState,
                         onCheckUpdate = { viewModel.checkForUpdate() },
-                        onDownloadUpdate = viewModel::downloadUpdate,
-                        onInstallUpdate = { viewModel.installUpdate(context) },
+                        onOpenUpdateDialog = viewModel::openUpdateDialog,
                         onDismissUpdate = viewModel::dismissUpdate,
                         onDebugLogEnabledChange = viewModel::setDebugLogEnabled,
                         onJudgeLogEnabledChange = viewModel::setJudgeLogEnabled,
@@ -358,8 +367,7 @@ private fun HomeScaffold(
     onOpenDebugLog: () -> Unit,
     updateState: UpdateState,
     onCheckUpdate: () -> Unit,
-    onDownloadUpdate: () -> Unit,
-    onInstallUpdate: () -> Boolean,
+    onOpenUpdateDialog: () -> Unit,
     onDismissUpdate: () -> Unit,
     onDebugLogEnabledChange: (Boolean) -> Unit,
     onJudgeLogEnabledChange: (Boolean) -> Unit,
@@ -636,8 +644,7 @@ private fun HomeScaffold(
                     onOpenDebugLog = onOpenDebugLog,
                     updateState = updateState,
                     onCheckUpdate = onCheckUpdate,
-                    onDownloadUpdate = onDownloadUpdate,
-                    onInstallUpdate = onInstallUpdate,
+                    onOpenUpdateDialog = onOpenUpdateDialog,
                     onDismissUpdate = onDismissUpdate,
                     onDebugLogEnabledChange = onDebugLogEnabledChange,
                     onJudgeLogEnabledChange = onJudgeLogEnabledChange,

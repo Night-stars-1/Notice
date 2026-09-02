@@ -55,6 +55,13 @@ class NoticeViewModel(application: Application) : AndroidViewModel(application) 
     private val _updateState = MutableStateFlow<UpdateState>(UpdateState.Idle)
     val updateState: StateFlow<UpdateState> = _updateState.asStateFlow()
 
+    /** 发现新版本后自动弹出（静默检查也弹），用户点「稍后」后本次运行不再自动弹。 */
+    private val _updateDialogVisible = MutableStateFlow(false)
+    val updateDialogVisible: StateFlow<Boolean> = _updateDialogVisible.asStateFlow()
+
+    fun openUpdateDialog() { _updateDialogVisible.value = true }
+    fun closeUpdateDialog() { _updateDialogVisible.value = false }
+
     val config: StateFlow<FilterConfig> = rules.config
         .stateIn(viewModelScope, SharingStarted.Eagerly, rules.config.value)
 
@@ -107,6 +114,7 @@ class NoticeViewModel(application: Application) : AndroidViewModel(application) 
                 updates.lastCheckedAt = System.currentTimeMillis()
                 if (AppVersion.isNewer(info.tag, BuildConfig.VERSION_NAME)) {
                     _updateState.value = UpdateState.Available(info)
+                    _updateDialogVisible.value = true
                 } else if (!silent) {
                     _updateState.value = UpdateState.UpToDate(info.tag)
                 }

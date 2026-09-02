@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.Colorize
@@ -29,14 +28,11 @@ import moe.notice.filter.domain.Appearance
 import moe.notice.filter.domain.DarkMode
 import moe.notice.filter.ui.theme.ThemePresets
 import moe.notice.filter.ui.theme.supportsDynamicColor
-import android.widget.Toast
-import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.outlined.SystemUpdate
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.runtime.LaunchedEffect
 import moe.notice.filter.domain.UpdateState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.lazy.LazyColumn
@@ -102,19 +98,12 @@ fun SettingsScreen(
     onRequestTest: () -> Unit,
     updateState: UpdateState,
     onCheckUpdate: () -> Unit,
-    onDownloadUpdate: () -> Unit,
-    onInstallUpdate: () -> Boolean,
+    onOpenUpdateDialog: () -> Unit,
     onDismissUpdate: () -> Unit,
     contentPadding: PaddingValues,
 ) {
     var confirmClearLabels by remember { mutableStateOf(false) }
-    var updateDialog by remember { mutableStateOf(false) }
-    val updateInfo = when (updateState) {
-        is UpdateState.Available -> updateState.info
-        is UpdateState.Downloading -> updateState.info
-        is UpdateState.Ready -> updateState.info
-        else -> null
-    }
+    val hasUpdate = updateState is UpdateState.Available || updateState is UpdateState.Downloading || updateState is UpdateState.Ready
     var darkModeDialog by remember { mutableStateOf(false) }
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -321,16 +310,10 @@ fun SettingsScreen(
                     is UpdateState.Error -> stringResource(R.string.update_error, updateState.message)
                 },
                 shape = groupedListShape(1, 3),
-                onClick = { if (updateInfo != null) updateDialog = true else onCheckUpdate() },
+                onClick = { if (hasUpdate) onOpenUpdateDialog() else onCheckUpdate() },
             ) {
                 if (updateState is UpdateState.Checking) {
                     CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-                } else {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Outlined.KeyboardArrowRight,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
                 }
             }
         }
@@ -355,42 +338,6 @@ fun SettingsScreen(
                 )
             }
         }
-    }
-    if (updateDialog && updateInfo != null) {
-        val context = LocalContext.current
-        val installFailed = stringResource(R.string.update_install_failed)
-        AlertDialog(
-            onDismissRequest = { updateDialog = false },
-            title = { Text(stringResource(R.string.update_dialog_title, updateInfo.tag)) },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    if (updateState is UpdateState.Downloading) {
-                        val p = updateState.progress
-                        if (p >= 0f) LinearProgressIndicator(progress = { p }, modifier = Modifier.fillMaxWidth())
-                        else LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-                    }
-                    Text(
-                        text = updateInfo.notes.ifBlank { updateInfo.htmlUrl },
-                        style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier
-                            .heightIn(max = 320.dp)
-                            .verticalScroll(rememberScrollState()),
-                    )
-                }
-            },
-            confirmButton = {
-                when (updateState) {
-                    is UpdateState.Ready -> TextButton(onClick = {
-                        if (!onInstallUpdate()) Toast.makeText(context, installFailed, Toast.LENGTH_SHORT).show()
-                    }) { Text(stringResource(R.string.update_install)) }
-                    is UpdateState.Downloading -> Unit
-                    else -> TextButton(onClick = onDownloadUpdate) { Text(stringResource(R.string.update_download_install)) }
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { updateDialog = false }) { Text(stringResource(R.string.update_later)) }
-            },
-        )
     }
     if (updateState is UpdateState.UpToDate || updateState is UpdateState.Error) {
         // 提示性状态只停留几秒，然后回到「点击检查」
