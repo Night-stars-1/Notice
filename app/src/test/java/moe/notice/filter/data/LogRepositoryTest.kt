@@ -94,6 +94,8 @@ class LogRepositoryTest {
         val r = LogRepository(file)
         r.post("10%", at = 1_000, progress = "10 / 100")
         r.post("20%", at = 2_000, progress = "20 / 100")
+        // 合并更新是延迟落盘的，先强制写入再重新打开
+        r.flush()
         assertEquals(1, LogRepository(file).items.value[0].updateCount)
     }
 }

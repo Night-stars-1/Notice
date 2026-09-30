@@ -28,6 +28,24 @@ internal class KeywordFilter {
     @Volatile private var loadedDeltaVersion = -1L
     private var api: XposedInterface? = null
     private val sink = LogSink()
+    /**
+     * 进度类通知（下载条等）每秒会更新很多次，每次都跑规则、AI 和跨进程上报会拖慢状态栏。
+     * 这里按「包名 / id / tag」缓存上一次的判定结果：后续进度更新直接复用结论，
+     * 并把记录上报限制为每 [PROGRESS_LOG_INTERVAL_MS] 最多一次。
+     */
+    private val progressCache = object : LinkedHashMap<String, ProgressEntry>(16, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, ProgressEntry>?): Boolean =
+            size > PROGRESS_CACHE_SIZE
+    }
+
+    private class ProgressEntry(
+        val outcome: Outcome,
+        val hit: BlockRule?,
+        val shownRule: BlockRule?,
+        val verdict: SpamJudge.Verdict?,
+        var lastLoggedAt: Long,
+        var lastSeenAt: Long,
+    )
     // 强引用持有：SharedPreferences 的实现以弱引用保存监听器。
     private var listener: SharedPreferences.OnSharedPreferenceChangeListener? = null
 
@@ -118,8 +136,24 @@ internal class KeywordFilter {
         val resolved = Xiaomi.resolvePackage(pkg, n)
         if (resolved in PROTECTED_PACKAGES) return Outcome.PASS
 
-        val extracted = NotificationText.extract(n)
+        val progressKey = if (hasProgressBar(n)) progressKey(resolved, args) else null
         val cfg = config
+        if (progressKey != null) {
+            val now = System.currentTimeMillis()
+            val cached = synchronized(progressCache) {
+                progressCache[progressKey]?.takeIf { now - it.lastSeenAt < PROGRESS_CACHE_TTL_MS }
+            }
+            if (cached != null) {
+                cached.lastSeenAt = now
+                if (cfg.logEnabled && now - cached.lastLoggedAt >= PROGRESS_LOG_INTERVAL_MS) {
+                    cached.lastLoggedAt = now
+                    logRecord(context, n, args, resolved, NotificationText.extract(n), cached.hit, cached.shownRule, cached.verdict)
+                }
+                return cached.outcome
+            }
+        }
+
+        val extracted = NotificationText.extract(n)
         val decision = if (!cfg.enabled) {
             RuleMatcher.Decision()
         } else {
@@ -146,19 +180,54 @@ internal class KeywordFilter {
         if (cfg.judgeLogEnabled) {
             Xp.log(formatJudgeLog(resolved, extracted.combined, hit, shownRule, verdict, decision.skipAi))
         }
-        if (config.logEnabled) {
-            try {
-                if (shownRule != null || extracted.combined.isNotEmpty()) {
-                    val details = runCatching { NotificationCapture.capture(n, args) }
-                        .getOrDefault(NotificationDetails())
-                        .copy(spamScore = verdict?.score, spamProtected = verdict?.protected == true)
-                    log(context, resolved, extracted, hit != null, shownRule, details)
-                }
-            } catch (t: Throwable) {
-                Xp.log("记录通知日志失败", t)
+        if (cfg.logEnabled) logRecord(context, n, args, resolved, extracted, hit, shownRule, verdict)
+        val outcome = Outcome(block = hit != null, notify = hit?.notify ?: false)
+        if (progressKey != null) {
+            val now = System.currentTimeMillis()
+            synchronized(progressCache) {
+                progressCache[progressKey] = ProgressEntry(outcome, hit, shownRule, verdict, lastLoggedAt = now, lastSeenAt = now)
             }
         }
-        return Outcome(block = hit != null, notify = hit?.notify ?: false)
+        return outcome
+    }
+
+    private fun logRecord(
+        context: Context?,
+        n: Notification,
+        args: Array<Any?>,
+        resolved: String,
+        extracted: NotificationText.Extracted,
+        hit: BlockRule?,
+        shownRule: BlockRule?,
+        verdict: SpamJudge.Verdict?,
+    ) {
+        try {
+            if (shownRule != null || extracted.combined.isNotEmpty()) {
+                val details = runCatching { NotificationCapture.capture(n, args) }
+                    .getOrDefault(NotificationDetails())
+                    .copy(spamScore = verdict?.score, spamProtected = verdict?.protected == true)
+                log(context, resolved, extracted, hit != null, shownRule, details)
+            }
+        } catch (t: Throwable) {
+            Xp.log("记录通知日志失败", t)
+        }
+    }
+
+    /** 与 NotificationCapture.progress 的口径一致：只有 max > 0 或不确定进度才算进度条。 */
+    private fun hasProgressBar(n: Notification): Boolean {
+        val extras = n.extras ?: return false
+        if (!extras.containsKey(Notification.EXTRA_PROGRESS)) return false
+        return extras.getBoolean(Notification.EXTRA_PROGRESS_INDETERMINATE, false) ||
+            extras.getInt(Notification.EXTRA_PROGRESS_MAX, 0) > 0
+    }
+
+    /** enqueueNotificationInternal 的参数里 tag、id 紧挨在 Notification 前面。 */
+    private fun progressKey(pkg: String, args: Array<Any?>): String? {
+        val index = args.indexOfFirst { it is Notification }
+        if (index < 1) return null
+        val id = args[index - 1] as? Int ?: return null
+        val tag = if (index >= 2) args[index - 2] as? String else null
+        return "$pkg#$id#${tag.orEmpty()}"
     }
 
     private fun formatJudgeLog(
@@ -258,6 +327,11 @@ internal class KeywordFilter {
     }
 
     private companion object {
+        const val PROGRESS_CACHE_SIZE = 64
+        /** 进度通知停止更新多久后，下一次更新重新完整判定。 */
+        const val PROGRESS_CACHE_TTL_MS = 60_000L
+        /** 同一条进度通知两次记录上报之间的最小间隔。 */
+        const val PROGRESS_LOG_INTERVAL_MS = 3_000L
         val PROTECTED_PACKAGES = setOf(
             "android",
             "com.android.systemui",

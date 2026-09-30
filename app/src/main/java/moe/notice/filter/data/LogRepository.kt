@@ -12,6 +12,11 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 class LogRepository internal constructor(private val file: File) {
+    // 进度更新原地合并时不必每次重写整个文件：延迟一小段时间合并落盘。新记录仍立即写入。
+    private val writer = java.util.concurrent.Executors.newSingleThreadScheduledExecutor { r ->
+        Thread(r, "notice-log-writer").apply { isDaemon = true }
+    }
+    private var pendingWrite: java.util.concurrent.ScheduledFuture<*>? = null
     private val lock = Any()
     private val _items = MutableStateFlow(readLocked())
     val items: StateFlow<List<NotificationRecord>> = _items.asStateFlow()
@@ -57,9 +62,29 @@ class LogRepository internal constructor(private val file: File) {
                 }
                 next = list
             }
-            writeLocked(next)
+            if (mergeIndex >= 0) scheduleWriteLocked() else writeLocked(next)
             _items.value = next
             return stored
+        }
+    }
+
+    // 在持有 [lock] 时调用。
+    private fun scheduleWriteLocked() {
+        if (pendingWrite != null) return
+        pendingWrite = writer.schedule({
+            synchronized(lock) {
+                pendingWrite = null
+                writeLocked(_items.value)
+            }
+        }, WRITE_DEBOUNCE_MS, java.util.concurrent.TimeUnit.MILLISECONDS)
+    }
+
+    /** 立刻把待写入的合并更新落盘（测试用）。 */
+    internal fun flush() {
+        synchronized(lock) {
+            pendingWrite?.cancel(false)
+            pendingWrite = null
+            writeLocked(_items.value)
         }
     }
 
@@ -143,6 +168,7 @@ class LogRepository internal constructor(private val file: File) {
 
     companion object {
         private const val MAX_ITEMS = 500
+        private const val WRITE_DEBOUNCE_MS = 2_000L
         private const val MERGE_WINDOW_MS = 10 * 60 * 1000L
         private const val INDETERMINATE_PROGRESS = "不确定进度" // 必须与 NotificationCapture.progress() 一致
         private const val FLAG_ONGOING_EVENT = 0x00000002 // Notification.FLAG_ONGOING_EVENT（避免测试依赖 android.jar）

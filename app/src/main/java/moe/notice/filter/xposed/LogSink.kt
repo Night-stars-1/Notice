@@ -27,6 +27,9 @@ internal class LogSink {
     private val pending = ArrayDeque<Pair<Uri, ContentValues>>()
     private var scheduled: ScheduledFuture<*>? = null
     private var receiverRegistered = false
+    // runningAppProcesses 是较重的系统调用，缓存几秒钟，避免每条通知都查一次。
+    private var appRunningCached = false
+    private var appRunningCheckedAt = 0L
 
     fun submit(ctx: Context, values: ContentValues, uri: Uri = NotificationLogProvider.CONTENT_URI) {
         worker.execute {
@@ -59,6 +62,14 @@ internal class LogSink {
     }
 
     private fun appRunning(ctx: Context): Boolean {
+        val now = System.currentTimeMillis()
+        if (now - appRunningCheckedAt < APP_RUNNING_CACHE_MS) return appRunningCached
+        appRunningCheckedAt = now
+        appRunningCached = queryAppRunning(ctx)
+        return appRunningCached
+    }
+
+    private fun queryAppRunning(ctx: Context): Boolean {
         return try {
             val am = ctx.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
             am.runningAppProcesses?.any { proc ->
@@ -96,5 +107,6 @@ internal class LogSink {
         const val FLUSH_DELAY_MS = 30_000L
         const val FLUSH_THRESHOLD = 50
         const val MAX_PENDING = 2_000
+        const val APP_RUNNING_CACHE_MS = 5_000L
     }
 }
